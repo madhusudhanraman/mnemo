@@ -1,0 +1,11 @@
+desktop/build/
+prototype/review/mesh.json
+.DS_Store
+
+desktop/signing-identity.local
+
+__pycache__/
+*.pyc
+prototype/review/motion-frame.png
+.env
+.env.*
