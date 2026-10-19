@@ -1,0 +1,36 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Choose Mnemo’s size</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:26px 30px;background:#242131;color:#eeeaf8;font:14px system-ui,sans-serif}h1{font-size:24px;font-weight:500;letter-spacing:-.5px;margin:0 0 8px}p{color:#bbaeCA;line-height:1.6;margin:0}canvas{width:660px;height:240px;display:block;margin:6px auto 0}.choices{display:grid;grid-template-columns:repeat(3,220px);text-align:center;justify-content:center}.choices strong{display:block;font-size:17px;font-weight:500;margin-bottom:9px}.choices span{color:#ac9dbd;font-size:12px}.choices button{display:block;margin:10px auto 0;padding:9px 18px;border-radius:22px;border:1px solid #6e5e87;background:#393047;color:#eee5ff;font:inherit;font-size:12px;cursor:pointer}.choices button:hover{background:#514164}.choices button:focus-visible{outline:2px solid #cdb4f0;outline-offset:3px}.choices button[aria-pressed=true]{background:#d2c1ee;color:#30233e}#status{min-height:24px;text-align:center;margin-top:16px;color:#d2c1ee}.note{font-size:11px;text-align:center;margin-top:3px}
+.custom{margin:24px 16px 0}.custom label{display:flex;justify-content:space-between}.custom input{width:100%;margin:14px 0;accent-color:#d2c1ee}.custom p{font-size:12px}output{color:#d2c1ee}
+</style>
+<h1>Size</h1>
+<canvas id="sizes" aria-label="Mnemo shown side by side at 80, 110 and 140 points tall"></canvas>
+<div class="choices"><div><button data-height="80" aria-pressed="false">Small</button></div><div><button data-height="110" aria-pressed="false">Medium</button></div><div><button data-height="140" aria-pressed="false">Large</button></div></div>
+<div class="custom"><label for="height">Height <output id="height-value">110 pt</output></label><input id="height" type="range" min="60" max="180" step="1" value="110" aria-label="Mnemo height in points"></div>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js";
+/* COMPANION_MODEL */
+/* SIZE_UTILS */
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('sizes'),alpha:true,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(660,240,false);
+renderer.setClearColor(0,0);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+const scene=new THREE.Scene();
+/* STUDIO_LIGHTING */
+const camera=new THREE.PerspectiveCamera(35,220/240,.1,100);camera.position.set(0,1.1,10);camera.lookAt(0,.05,0);camera.updateMatrixWorld(true);
+const heights=[80,110,140],ghosts=heights.map(height=>{const ghost=createGhost();scene.add(ghost.group);fitGhostHeight(ghost,camera,height,240,205);return ghost});
+renderer.setScissorTest(true);
+ghosts.forEach((ghost,index)=>{
+ ghosts.forEach(item=>item.group.visible=item===ghost);
+ renderer.setViewport(index*220,0,220,240);renderer.setScissor(index*220,0,220,240);renderer.render(scene,camera);
+});
+const slider=document.getElementById('height'),value=document.getElementById('height-value');
+function selectHeight(height,apply=true){
+ slider.value=height;value.textContent=`${height} pt`;
+ if(apply){window.mnemoDesktop?.setSize(height);}
+ for(const button of document.querySelectorAll('[data-height]'))button.setAttribute('aria-pressed',String(Number(button.dataset.height)===height));
+}
+slider.oninput=()=>selectHeight(Number(slider.value));
+for(const button of document.querySelectorAll('[data-height]'))button.onclick=()=>selectHeight(Number(button.dataset.height));
+selectHeight(window.mnemoDesktop?.preferredHeight||110,false);
+</script></html>

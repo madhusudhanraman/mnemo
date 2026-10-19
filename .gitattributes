@@ -1,0 +1,8 @@
+prototype/vendor/** linguist-vendored
+prototype/index.html linguist-generated
+prototype/ghost.html linguist-generated
+prototype/editor.html linguist-generated
+prototype/sizes.html linguist-generated
+prototype/appearance-preview.html linguist-generated
+prototype/multiple-reminders-preview.html linguist-generated
+prototype/octopus-prototype.html linguist-generated

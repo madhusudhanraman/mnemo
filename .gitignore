@@ -9,3 +9,6 @@ __pycache__/
 prototype/review/motion-frame.png
 .env
 .env.*
+
+prototype/review/*.png
+prototype/review/*.gif

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mnemo · companion motion prototype</title>
+<style>
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:radial-gradient(ellipse at 74% 55%,#292439 0%,#171723 42%,#10121c 85%);color:#eeeafc;font:15px system-ui,sans-serif;height:100vh}main{position:absolute;left:7vw;top:12vh;max-width:420px}small{color:#b3a6d8;letter-spacing:.18em}h1{font-size:48px;line-height:1.08;font-weight:550;letter-spacing:-2px}p{color:#a9a6bc;line-height:1.7}button{background:#29263e;border:1px solid #48405e;color:#eee7ff;border-radius:24px;padding:11px 18px;cursor:pointer;margin:5px 5px 5px 0}button:hover{background:#42375e}button:focus-visible{outline:2px solid #dbbbff;outline-offset:3px}#pet{position:absolute;width:460px;height:460px;left:0;top:0;cursor:grab;touch-action:none;user-select:none;filter:drop-shadow(0 18px 22px #06061166)}#pet:focus{outline:none}#pet:focus-visible{filter:drop-shadow(0 0 5px #b8a4e2)}#pet:active{cursor:grabbing}svg{overflow:visible;width:100%;height:100%}#bubble{position:fixed;left:50%;top:24%;width:230px;max-width:calc(100vw - 24px);transform:translate(-50%,-100%) translateY(-26px);background:#f4efff;color:#372b52;border-radius:28px;padding:15px 20px;opacity:0;transition:opacity .3s;pointer-events:none;font-size:14px;line-height:1.5;text-align:center;box-shadow:0 8px 24px #0002;z-index:2}#bubble::before,#bubble::after{content:"";position:absolute;background:#f4efff;border-radius:50%}#bubble::before{width:11px;height:11px;left:calc(50% + 10px);bottom:-13px}#bubble::after{width:6px;height:6px;left:calc(50% + 5px);bottom:-24px}#bubble.show{opacity:1}footer{position:absolute;bottom:28px;left:7vw;color:#79758e;font-size:12px} @media(max-width:600px){h1{font-size:34px}main{top:6vh;max-width:85vw}#pet{width:240px;height:240px}}
+
+input,select{font:inherit;color:inherit;background:#191825;border:1px solid #4c455f;border-radius:12px;padding:12px;width:100%;color-scheme:dark}input:focus,select:focus{outline:2px solid #b8a4e2;outline-offset:2px}label{display:block;color:#d6cce8;font-size:13px;margin:15px 0 7px}#reminder-panel{display:none;position:fixed;right:24px;top:24px;bottom:24px;width:min(440px,calc(100vw - 32px));padding:26px;background:#242131f5;border:1px solid #494054;border-radius:24px;box-shadow:0 25px 80px #0007;overflow:auto;z-index:10;backdrop-filter:blur(22px)}.reminders-open #reminder-panel{display:block}#reminder-panel header{display:flex;justify-content:space-between;align-items:start}#reminder-panel h2{font-size:24px;line-height:1.2;font-weight:500;letter-spacing:-.7px;margin:10px 0}#close-reminders{padding:3px 11px;font-size:24px;margin:0}#reminder-panel small{font-size:10px}#reminder-panel button{font-size:12px;padding:8px 12px;margin:4px 3px 4px 0}.quick-times{margin:8px 0}.form-bottom{margin-top:16px;display:flex;gap:8px;align-items:center}#reminder-panel .primary{background:#d3c4ee;color:#2a203a;border-color:#d3c4ee;font-weight:600}#reminder-message{font-size:13px;line-height:1.5;min-height:20px;margin:10px 0;color:#c5b7e0}#reminder-message:empty{display:none}.reminder-settings{margin-top:18px}.reminder-settings summary{cursor:pointer}#reminder-when{margin-top:8px}#reminder-message.error{color:#ffbfba}.reminder-settings{font-size:11px;color:#b6a9c8;border-bottom:1px solid #484052;padding-bottom:16px}.reminder-settings span{display:block;line-height:1.5}.list-heading{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.list-heading h3{font-size:14px;font-weight:500;margin:0}.list-heading span{font-size:12px;color:#b6a9c8}.reminder-row{padding:15px 0;border-bottom:1px solid #423a50}.reminder-row strong{display:block;font-size:14px;font-weight:500;line-height:1.5;overflow-wrap:anywhere}.reminder-row span{display:block;font-size:12px;color:#ad9fc1;margin-top:4px}.reminder-row.is-due strong{color:#f2d8a8}.row-actions{margin-top:7px}.row-actions button{background:transparent}.empty-state,.reminder-footnote{font-size:12px;line-height:1.6;color:#a89bb8}.reminder-footnote{margin-top:24px}#completed-reminders{margin-top:22px;font-size:12px;color:#b8aacd}#bubble.show{pointer-events:auto}.thought-content{max-height:80px;overflow:auto;overflow-wrap:anywhere}.thought-meta{display:block;font-size:10px;color:#796b8c;margin-bottom:5px}.thought-actions{display:flex;gap:6px;justify-content:center;margin-top:10px}.thought-actions button{font-size:11px;padding:6px 9px;margin:0;color:#3c3054;background:#e3d9f2;border-color:#c4b5d9}.desktop-mode{background:transparent}.desktop-mode main,.desktop-mode footer{display:none}.companion-mode #pet{width:240px;height:240px}.manager-mode{background:#242131}.manager-mode #pet,.manager-mode #bubble{display:none!important}.manager-mode #reminder-panel{display:block;inset:0;width:auto;border:0;border-radius:0;box-shadow:none}.manager-mode #close-reminders{display:none}button[hidden],[hidden]{display:none!important}
+
+#reminder-form.thought-form{position:relative;background:#f4efff;color:#372b52;border-radius:26px;padding:22px;margin:20px 0 45px}#reminder-form.thought-form:before,#reminder-form.thought-form:after{content:"";position:absolute;background:#f4efff;border-radius:50%;right:45px;bottom:-16px;width:12px;height:12px}#reminder-form.thought-form:after{right:36px;bottom:-28px;width:7px;height:7px}#reminder-form.thought-form label{color:#796b8c;margin:0 0 6px}#reminder-form.thought-form input{color:#372b52;background:transparent;border:0;border-bottom:1px solid #c8badc;border-radius:0;padding:8px 0;color-scheme:light}#reminder-form.thought-form .day-row{display:flex;gap:10px;align-items:center;margin-top:16px}#reminder-days{width:56px;text-align:center}#reminder-form.thought-form #save-reminder{margin-left:auto;font-size:18px;min-width:40px}#reminder-form.thought-form #custom-time,#reminder-form.thought-form #cancel-edit{background:transparent;color:#796b8c;border:0;padding:0;margin-top:15px}#reminder-form.thought-form #reminder-when{width:100%}
+#reminder-form.thought-form{max-width:380px;margin:20px auto 45px;background:#242131;color:#eee7fa;border:1px solid #494054;border-radius:25px;padding:24px;box-shadow:0 12px 35px #0002}#reminder-form.thought-form:before,#reminder-form.thought-form:after{background:#242131}#reminder-form.thought-form label{color:#b9adca}#reminder-form.thought-form input{color:#eee7fa;border-bottom-color:#51475e;color-scheme:dark;font-size:15px}#reminder-form.thought-form input:focus{outline:none;border-bottom-color:#cdb4f0}#reminder-form.thought-form input:focus-visible{outline:none;box-shadow:0 1px #cdb4f0}#reminder-form.thought-form #save-reminder{font-size:15px;min-width:36px;padding:7px 11px;border-radius:10px}#reminder-form.thought-form #custom-time,#reminder-form.thought-form #cancel-edit{color:#b9adca;font-size:12px}#reminder-form.thought-form .day-row{margin-top:12px}#reminder-days::-webkit-inner-spin-button{appearance:none}
+
+#reminder-form .schedule-modes{display:flex;gap:4px;margin:18px 0 12px;background:#191825;border-radius:12px;padding:3px}#reminder-panel .schedule-modes button{flex:1;margin:0;border:0;background:transparent;color:#b9adca;border-radius:9px}#reminder-panel .schedule-modes button[aria-pressed=true]{background:#42384f;color:#eee7fa}#reminder-form .month-nav{display:flex;align-items:center;justify-content:space-between;margin-top:10px}#reminder-panel .month-nav button{border:0;background:transparent;font-size:20px;padding:3px 12px;margin:0}#reminder-form .weekdays,#picker-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));text-align:center;gap:3px}#reminder-form .weekdays{font-size:11px;color:#b9adca;margin:8px 0}#reminder-panel #picker-days button{margin:0;padding:6px 0;border:0;border-radius:8px;background:transparent;min-height:30px;font-size:12px}#reminder-panel #picker-days button[aria-pressed=true],#reminder-panel #clock-face button[aria-pressed=true]{background:#d3c4ee;color:#30233e}#reminder-panel #picker-days button:disabled{opacity:.25;cursor:default}#reminder-form .clock-header{display:flex;align-items:center;justify-content:center;gap:3px;margin:16px 0 8px}#reminder-panel .clock-header button{margin:0;background:transparent;border:0;border-radius:8px;padding:5px 8px;color:#b9adca}#reminder-panel .clock-header button[aria-pressed=true]{background:#42384f;color:#eee7fa}#clock-face{position:relative;width:176px;height:176px;margin:0 auto;background:#191825;border-radius:50%;touch-action:none}#reminder-panel #clock-face button{position:absolute;transform:translate(-50%,-50%);width:29px;height:29px;padding:0;margin:0;border:0;background:transparent;font-size:12px;z-index:1}#clock-face .clock-hand{position:absolute;left:calc(50% - 1px);bottom:50%;height:52px;width:2px;transform-origin:center bottom;background:#b8a4e2;pointer-events:none}#clock-face:after{content:"";position:absolute;left:calc(50% - 3px);top:calc(50% - 3px);width:6px;height:6px;border-radius:50%;background:#b8a4e2}#date-summary{text-align:center;font-size:12px;margin:12px 0 0;color:#b9adca}#reminder-form .form-bottom{justify-content:flex-end;margin-top:12px}
+#reminder-form .picker-tabs{display:flex;justify-content:center;gap:12px}#reminder-panel .picker-tabs button{border:0;border-radius:0;background:transparent;padding:5px 2px;color:#b9adca}#reminder-panel .picker-tabs button[aria-pressed=true]{color:#eee7fa;border-bottom:1px solid #b8a4e2}
+#reminder-form .time-wheels{display:flex;align-items:center;justify-content:center;gap:12px;margin:20px 0 10px}#reminder-form .time-wheel{height:180px;width:66px;overflow-y:auto;padding:72px 0;scroll-snap-type:y mandatory;overscroll-behavior:contain;scrollbar-width:none;border-radius:12px;background:linear-gradient(to bottom,transparent 72px,#42384f 72px,#42384f 108px,transparent 108px);mask-image:linear-gradient(to bottom,transparent,#000 35%,#000 65%,transparent)}#reminder-form .time-wheel::-webkit-scrollbar{display:none}#reminder-panel .time-wheel button{display:block;height:36px;width:100%;min-height:36px;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:#b9adca;font-size:19px;scroll-snap-align:center;flex-shrink:0}#reminder-panel .time-wheel button[aria-selected=true]{color:#eee7fa;font-weight:500}#reminder-form .wheel-colon{font-size:20px}#reminder-form .period-picker{display:flex;flex-direction:column;gap:5px;margin-left:4px}#reminder-panel .period-picker button{margin:0;border:0;border-radius:10px;padding:7px 10px;background:transparent;color:#b9adca}#reminder-panel .period-picker button[aria-pressed=true]{background:#42384f;color:#eee7fa}
+</style>
+<main><small>MNEMO / A LITTLE SPIRIT</small><h1>A little presence.<br>A gentle reminder.</h1><p>Soft fabric, a rippling hem, and the occasional happy spin. Drag your companion anywhere.</p><div><button id="remind">My reminders</button></div></main>
+<div id="pet" role="button" tabindex="0" aria-label="Mnemo — add a reminder" title="Click to add a reminder · drag to move"><canvas id="art" width="640" height="640" aria-hidden="true" style="width:100%;height:100%"></canvas></div><div id="bubble" role="status">A gentle nudge: take a little stretch.</div><footer>3D prototype · drag to move · Shift + drag to turn · click Mnemo to add a reminder</footer>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js";
+/* CLOTH_GPU */
+/* COMPANION_MODEL */
+/* FADE_RENDERER */
+/* IDLE_MOTION */
+/* SIZE_UTILS */
+/* REMINDER_MODULE */
+const pet=document.querySelector('#pet'),canvas=document.querySelector('#art'),bubble=document.querySelector('#bubble');
+const desktop=window.mnemoDesktop;
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let paused=reduced,dragging=false,position={x:innerWidth*.65,y:innerHeight*.48},target={...position},last=0,time=0,nextAdventure=90+Math.random()*90,spinStart=-100,swimming=false,bubbleTimer;
+let hovering=false,idleClock=0,wander={x:0,y:0},suppressClick=false;
+const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(desktop?240:640,desktop?240:640,false);
+renderer.setClearColor(0,0);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.1,100);camera.position.set(0,1.1,10);camera.lookAt(0,.05,0);camera.updateMatrixWorld(true);
+// Broad softboxes give continuous highlights rather than harsh point glints.
+scene.add(new THREE.HemisphereLight(0xfff1ed,0x8170ac,1.5));
+const studio=new THREE.Scene();studio.background=new THREE.Color(0x817894);
+const room=new THREE.Mesh(new THREE.SphereGeometry(15,32,24),new THREE.MeshBasicMaterial({color:0x817b98,side:THREE.BackSide}));studio.add(room);
+for(const [x,y,z,sx,sy,color] of [[-4,5,5,4,6,0xffe9dc],[5,2,2,3,5,0xcbd3ff],[-1,4,-5,5,3,0xd9bdff]]){
+ const panel=new THREE.Mesh(new THREE.PlaneGeometry(sx,sy),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));panel.position.set(x,y,z);panel.lookAt(0,0,0);studio.add(panel);
+}
+const pmrem=new THREE.PMREMGenerator(renderer);const studioMap=pmrem.fromScene(studio,.12);scene.environment=studioMap.texture;pmrem.dispose();
+for(const [color,power,x,y,z] of [[0xffe4da,55,-4,5,5],[0xbabaff,28,4,2,-3]]){const l=new THREE.PointLight(color,power);l.position.set(x,y,z);scene.add(l)}
+const companion=createGhost({around:96,down:64,gpu:true}),model=companion.group,headAnchor=new THREE.Vector3();scene.add(model);
+const fadeRenderer=createFadeRenderer(renderer,scene,camera,companion);
+let announcementStart=-100,announcementDuration=1.9;
+/* REMINDER_MOTION */
+let queueGlowOnly=false,queueFlutterAllowed=false;
+let announcementReveal=null,announcementBaseYaw=0;
+/* COMPANION_BEHAVIOURS */
+const behaviours=createBehaviours();let mood={sleep:0,eyeOpen:1,speed:1,curious:0,flutter:0,bob:0,tilt:0,phase:0},clothTime=0,lastBehaviourTime=0,lastInteraction=0,lastEyeOpen=1;
+let backgroundIsLight=false;
+const colourTarget=new THREE.Color(0xffffff);
+window.addEventListener('mnemo-colour',event=>{backgroundIsLight=Boolean(event.detail);companion.setEyeContrast(backgroundIsLight,paused);colourTarget.set(backgroundIsLight?0x59416f:0xffffff);if(paused)companion.sheet.material.color.copy(colourTarget);invalidateRender()});
+function draw(t){
+ const moodDt=Math.max(0,Math.min(.1,t-lastBehaviourTime));lastBehaviourTime=t;
+ if(t-lastInteraction>60&&!activeThoughtPersistent)behaviours.sleep();
+ mood=behaviours.step(moodDt,{busy:(activeThoughtPersistent&&!queueFlutterAllowed)||dragging,reduced});
+ clothTime+=moodDt*mood.speed;
+
+ companion.sheet.material.color.lerp(colourTarget,.045);
+ if(time>=peekabooReturn){companion.setVanished(false);peekabooReturn=Infinity}
+ if(mood.sleep<.2&&!paused&&!dragging&&!hovering&&!activeThoughtPersistent&&time>=nextPeekaboo&&time-spinStart>=3.8){peekaboo();nextPeekaboo=time+180+Math.random()*120}
+ const noticeElapsed=t-announcementStart;
+ const idleYaw=viewYaw+Math.sin(t*.35)*.12;
+ const noticeFrame=queueGlowOnly?queueCue(noticeElapsed,announcementBaseYaw,idleYaw):reminderNotice(noticeElapsed,announcementBaseYaw,idleYaw);
+ const activeNotice=noticeFrame.active;
+ const glow=activeNotice?noticeFrame.glow:0;
+ const lightBackground=backgroundIsLight;
+ const shadow=companionShadow(glow,lightBackground);if(pet.style.filter!==shadow)pet.style.filter=shadow;
+ companion.sheet.material.emissive.set(lightBackground?0x9a65e0:0xd9c4ff);companion.sheet.material.emissiveIntensity=glow*(lightBackground?.28:.65);
+ if(announcementReveal&&noticeFrame.showBubble){const reveal=announcementReveal;announcementReveal=null;reveal()}
+ const elapsed=t-spinStart,p=Math.min(1,Math.max(0,elapsed/3.8));
+ model.rotation.y=activeNotice?noticeFrame.yaw:viewYaw+(elapsed<3.8?Math.PI*2*p*p*(3-2*p):Math.sin(t*.35)*.12);
+ model.rotation.z=Math.sin(t*.65)*.035;model.rotation.x=Math.sin(t*.5)*.025;
+ const eyeSockets=model.children.filter(child=>child.isGroup);
+ for(const socket of eyeSockets)socket.scale.y/=lastEyeOpen;
+ companion.setFlutter(mood.flutter,mood.phase);
+ companion.update(clothTime,swimming);
+ for(const socket of eyeSockets)socket.scale.y*=mood.eyeOpen;
+ lastEyeOpen=mood.eyeOpen;
+ if(!companion.gpu&&mood.flutter>0&&!paused){
+  const vertices=companion.geometry.attributes.position;
+  for(let row=1;row<=companion.down;row++)for(let col=0;col<=companion.around;col++){
+   const index=row*(companion.around+1)+col,v=row/companion.down,theta=col/companion.around*Math.PI*2;
+   const point=whirlPoint(vertices.getX(index),vertices.getY(index),vertices.getZ(index),v,theta,mood.flutter,mood.phase);
+   vertices.setXYZ(index,point.x,point.y,point.z);
+  }
+  vertices.needsUpdate=true;companion.geometry.computeVertexNormals();
+ }
+ model.position.y=mood.bob;model.rotation.z+=mood.tilt;
+
+
+ fadeRenderer.render();
+ // Track the rendered crown, rather than the canvas bounding box.
+ model.localToWorld(headAnchor.set(0,1.60,0)).project(camera);
+
+}
+function positionBubble(){
+ const rect=canvas.getBoundingClientRect();
+ bubble.style.left=`${rect.left+(headAnchor.x*.5+.5)*rect.width}px`;
+ bubble.style.top=`${rect.top+(-headAnchor.y*.5+.5)*rect.height}px`;
+}
+function clamp(v,a,b){return Math.max(a,Math.min(Math.max(a,b),v))}function bounds(){target.x=clamp(target.x,10,innerWidth-pet.offsetWidth-10);target.y=clamp(target.y,90,innerHeight-pet.offsetHeight-20)}bounds();position={...target};
+function swim(){if(desktop)return;target={x:20+Math.random()*(innerWidth-pet.offsetWidth-40),y:100+Math.random()*(innerHeight-pet.offsetHeight-130)};bounds();swimming=true}
+function spin(){spinStart=time}
+let activeThoughtPersistent=false;
+let peekabooReturn=Infinity,nextPeekaboo=180+Math.random()*120;
+function peekaboo(){nextAdventure=Math.max(nextAdventure,time+12);companion.setVanished(true,reduced||paused);peekabooReturn=reduced||paused?Infinity:time+4;if(reduced||paused)setTimeout(()=>companion.setVanished(false,true),2200)}
+function toggleMotion(){paused=!paused;last=performance.now();invalidateRender()}
+let viewYaw=0,grab;
+pet.onpointerenter=()=>{if(!desktop)hovering=true};pet.onpointerleave=()=>{if(!desktop)hovering=false};
+pet.onpointerdown=e=>{
+ if(e.button!==undefined&&e.button!==0)return;
+ dragging=true;suppressClick=false;
+ const sx=e.screenX??e.clientX,sy=e.screenY??e.clientY;
+ grab={x:e.clientX-position.x,y:e.clientY-position.y,turn:e.shiftKey,lastX:e.clientX,screenX:sx,screenY:sy,startX:sx,startY:sy,moved:false};
+ pet.setPointerCapture(e.pointerId);
+};
+pet.onpointermove=e=>{
+ if(!dragging)return;
+ const sx=e.screenX??e.clientX,sy=e.screenY??e.clientY;
+ if(Math.hypot(sx-grab.startX,sy-grab.startY)>5)grab.moved=true;
+ if(!grab.moved)return;
+ if(grab.turn){viewYaw+=(e.clientX-grab.lastX)*.012;grab.lastX=e.clientX}
+ else if(desktop){desktop.moveBy({dx:sx-grab.screenX,dy:sy-grab.screenY});grab.screenX=sx;grab.screenY=sy}
+ else{position={x:e.clientX-grab.x,y:e.clientY-grab.y};target={...position}}
+};
+function release(cancelled=false){
+ if(!dragging)return;
+ suppressClick=cancelled||grab.moved||grab.turn;
+ if(desktop&&grab.moved&&!grab.turn){
+  // Transfer the current local offset into the window origin. The visible
+  // ghost stays exactly where the user dropped it; its new orbit starts here.
+  desktop.moveBy({dx:wander.x,dy:wander.y,remember:true});idleClock=0;wander={x:0,y:0};
+ }
+ dragging=false;if(!desktop)bounds();
+}
+pet.onpointerup=()=>release(false);pet.onpointercancel=()=>release(true);
+pet.onclick=e=>{if(!suppressClick&&!e.shiftKey)reminderUI.open();suppressClick=false};
+pet.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();reminderUI.open()}};
+addEventListener('resize',bounds);
+let lastRender=-Infinity,renderVisible=true,nativeVisible=true,frameQueued=false,renderTimer=null,needsRender=true;
+function invalidateRender(){needsRender=true;requestRender()}
+function requestRender(){if(!renderVisible||frameQueued||desktop?.mode==='manager')return;frameQueued=true;requestAnimationFrame(now=>{frameQueued=false;frame(now)})}
+function scheduleFrame(){if(!renderVisible||paused)return;clearTimeout(renderTimer);renderTimer=setTimeout(requestRender,Math.max(0,frameInterval()-(performance.now()-lastRender)))}
+function frameInterval(){const active=dragging||time-announcementStart<3.5||mood.flutter>.001;return active?1000/30:mood.sleep>.85?1000/10:1000/20}
+function updateRenderVisibility(){const wasVisible=renderVisible;renderVisible=nativeVisible&&!document.hidden;if(!renderVisible){clearTimeout(renderTimer);return}if(!wasVisible){last=performance.now();lastRender=-Infinity;invalidateRender()}}
+function frame(now){if(desktop?.mode==='manager'||!renderVisible)return;if(paused&&!needsRender)return;const interval=frameInterval();if(!needsRender&&now-lastRender<interval-.5){scheduleFrame();return}lastRender=now;needsRender=false;const dt=Math.min((now-last)/1000,.1);last=now;if(!paused)time+=dt;
+if(!paused&&!dragging&&!hovering){const k=1-Math.exp(-dt*1.1);position.x+=(target.x-position.x)*k;position.y+=(target.y-position.y)*k;if(Math.hypot(target.x-position.x,target.y-position.y)<3)swimming=false;if(mood.sleep<.2&&!activeThoughtPersistent&&time>nextAdventure&&peekabooReturn===Infinity&&companion.visibility>.9999&&time-spinStart>=3.8){if(desktop){const choice=Math.random();if(choice<.35)spin();else if(choice<.65)behaviours.curious()}else{Math.random()<.35?spin():swim()}nextAdventure=time+90+Math.random()*90}}
+if(desktop&&!paused&&!dragging&&!hovering&&!activeThoughtPersistent){idleClock+=dt*mood.speed;wander=idleOffset(idleClock)}
+const t=time;draw(t);pet.style.transform=`translate(${position.x+(desktop?wander.x:0)}px,${position.y+(desktop?wander.y:(dragging?0:Math.sin(t*1.15)*7))}px)`;positionBubble();reportHitRegions(now);scheduleFrame()}
+window.addEventListener('mnemo-visible',event=>{nativeVisible=Boolean(event.detail);updateRenderVisibility()});
+addEventListener('visibilitychange',updateRenderVisibility);
+window.addEventListener('pointermove',()=>{if(dragging)invalidateRender()});
+/* START_REMINDERS */
+requestRender();
+</script>
+</html>

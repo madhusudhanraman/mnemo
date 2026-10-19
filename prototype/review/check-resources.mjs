@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createFadeRenderer} from '../fade-renderer.mjs';
+const targets=[];
+const renderer={capabilities:{maxSamples:4},getDrawingBufferSize(v){return v.set(160,200)},setRenderTarget(t){if(t&&!targets.includes(t))targets.push(t)},render(){}};
+const companion={visibility:1,sheet:{visible:true}};
+const fade=createFadeRenderer(renderer,{}, {},companion);
+fade.render();assert.equal(fade.allocatedBuffers,0);
+companion.visibility=.5;fade.render();assert.equal(fade.allocatedBuffers,2);assert.equal(targets.length,2);
+let disposed=0;targets.forEach(t=>t.addEventListener('dispose',()=>disposed++));
+fade.resize();companion.visibility=0;fade.render();assert.equal(targets.length,2);
+companion.visibility=1;fade.render();assert.equal(disposed,2);assert.equal(fade.allocatedBuffers,0);
+companion.visibility=.4;fade.render();assert.equal(targets.length,4);fade.dispose();assert.equal(fade.allocatedBuffers,0);
+const editor=readFileSync(new URL('../editor.html',import.meta.url),'utf8');
+assert.ok(editor.includes('startReminders('));assert.ok(!editor.includes('WebGLRenderer'));assert.ok(!editor.includes('createGhost'));assert.ok(!editor.includes('three.module'));
+console.log('Lazy fade allocation, reuse, release and standalone editor checks passed.');
