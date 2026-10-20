@@ -74,13 +74,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             }
         } catch { showError(error.localizedDescription); NSApp.terminate(nil) }
     }
+    // Optional rendering overrides for performance experiments, e.g. `defaults write local.mnemo.companion debugIdleFPS -float 12`.
+    func debugRendering() -> String {
+        var values: [String: Double] = [:]
+        for (key, name, range) in [("debugIdleFPS", "idleFPS", 1.0...60), ("debugSleepyFPS", "sleepyFPS", 1.0...60), ("debugPixelRatio", "pixelRatio", 0.5...2)] {
+            if let value = UserDefaults.standard.object(forKey: key) as? Double, range.contains(value) { values[name] = value }
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: values), let json = String(data: data, encoding: .utf8) else { return "{}" }
+        return json
+    }
     func makeWeb(mode: String, resource: String = "ghost") -> WKWebView {
         let controller = WKUserContentController(); controller.add(Bridge(owner: self, mode: mode), name: "mnemo")
         let script = """
         (()=>{let next=0;const pending=new Map();window.mnemoNativeReply=reply=>{const p=pending.get(reply.id);if(!p)return;pending.delete(reply.id);reply.error?p.reject(new Error(reply.error)):p.resolve(reply.result)};
         const call=(method,payload={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.webkit.messageHandlers.mnemo.postMessage({id,method,payload})});
         const send=(method,payload={})=>window.webkit.messageHandlers.mnemo.postMessage({method,payload});
-        window.mnemoDesktop={mode:'\(mode)',preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions})};
+        window.mnemoDesktop={mode:'\(mode)',preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions})};
         window.addEventListener('error',e=>send('scriptError',{message:e.message}));
         })();
         """

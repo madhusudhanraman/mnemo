@@ -54968,7 +54968,7 @@ const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let paused=reduced,dragging=false,position={x:innerWidth*.65,y:innerHeight*.48},target={...position},last=0,time=0,nextAdventure=90+Math.random()*90,spinStart=-100,swimming=false,bubbleTimer;
 let hovering=false,idleClock=0,wander={x:0,y:0},suppressClick=false;
 const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(desktop?240:640,desktop?240:640,false);
+renderer.setPixelRatio(Math.min(devicePixelRatio,desktop?.debug?.pixelRatio??2));renderer.setSize(desktop?240:640,desktop?240:640,false);
 renderer.setClearColor(0,0);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.1,100);camera.position.set(0,1.1,10);camera.lookAt(0,.05,0);camera.updateMatrixWorld(true);
 // Broad softboxes give continuous highlights rather than harsh point glints.
@@ -55081,7 +55081,7 @@ function draw(t){
  model.rotation.z=Math.sin(t*.65)*.035;model.rotation.x=Math.sin(t*.5)*.025;
  const eyeSockets=model.children.filter(child=>child.isGroup);
  for(const socket of eyeSockets)socket.scale.y/=lastEyeOpen;
- companion.setFlutter(mood.flutter,mood.phase);
+ const ripple=stirRipple();if(ripple&&ripple.strength>mood.flutter)companion.setFlutter(ripple.strength,ripple.phase);else companion.setFlutter(mood.flutter,mood.phase);
  companion.update(clothTime,swimming);
  for(const socket of eyeSockets)socket.scale.y*=mood.eyeOpen;
  lastEyeOpen=mood.eyeOpen;
@@ -55113,7 +55113,7 @@ function spin(){spinStart=time}
 let activeThoughtPersistent=false;
 let peekabooReturn=Infinity,nextPeekaboo=180+Math.random()*120;
 function peekaboo(){nextAdventure=Math.max(nextAdventure,time+12);companion.setVanished(true,reduced||paused);peekabooReturn=reduced||paused?Infinity:time+4;if(reduced||paused)setTimeout(()=>companion.setVanished(false,true),2200)}
-function toggleMotion(){paused=!paused;last=performance.now();invalidateRender()}
+function toggleMotion(){paused=!paused;if(paused)stopDoze();last=performance.now();invalidateRender()}
 let viewYaw=0,grab;
 pet.onpointerenter=()=>{if(!desktop)hovering=true};pet.onpointerleave=()=>{if(!desktop)hovering=false};
 pet.onpointerdown=e=>{
@@ -55146,16 +55146,37 @@ pet.onpointerup=()=>release(false);pet.onpointercancel=()=>release(true);
 pet.onclick=e=>{if(!suppressClick&&!e.shiftKey)reminderUI.open();suppressClick=false};
 pet.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();reminderUI.open()}};
 addEventListener('resize',bounds);
+// Once fully sleepy, motion slows to a halt and rendering stops until something wakes him.
+let stillness=0;
+function colourSettled(){const c=companion.sheet.material.color;return Math.abs(c.r-colourTarget.r)+Math.abs(c.g-colourTarget.g)+Math.abs(c.b-colourTarget.b)<.003}
+function settled(){return stillness>=1&&colourSettled()}
+// While settled he keeps breathing; the compositor runs this without redrawing the scene.
+let doze=null;
+const dozeFrames=[{transform:'translateY(0) rotate(0deg) scale(1,1)'},{transform:'translateY(-4px) rotate(.7deg) scale(1.012,.99)',offset:.5},{transform:'translateY(0) rotate(0deg) scale(1,1)'}];
+// Every 20–30 s a dozing ghost stirs: the cloth half-wakes for a moment, then settles again.
+let stirEnd=0,stirStart=-Infinity,stirTimer=null;
+// A faint Whirl Flutter rides each stir.
+function stirRipple(){const e=(performance.now()-stirStart)/3200;return e>=0&&e<1?{strength:.3*Math.sin(Math.PI*e)**2,phase:e*2.6}:null}
+function scheduleStir(){clearTimeout(stirTimer);stirTimer=setTimeout(()=>{stirTimer=null;stirStart=performance.now();stirEnd=stirStart+3200;invalidateRender()},20000+Math.random()*10000)}
+function startDoze(){if(doze||reduced)return;doze=canvas.animate(dozeFrames,{duration:5600,iterations:Infinity,easing:'ease-in-out'})}
+function stopDoze(){clearTimeout(stirTimer);stirTimer=null;stirEnd=0;stirStart=-Infinity;if(!doze)return;const from=getComputedStyle(canvas).transform;doze.cancel();doze=null;if(from&&from!=='none')canvas.animate([{transform:from},{transform:'none'}],{duration:450,easing:'ease-out'})}
 let lastRender=-Infinity,renderVisible=true,nativeVisible=true,frameQueued=false,renderTimer=null,needsRender=true;
 function invalidateRender(){needsRender=true;requestRender()}
 function requestRender(){if(!renderVisible||frameQueued||desktop?.mode==='manager')return;frameQueued=true;requestAnimationFrame(now=>{frameQueued=false;frame(now)})}
-function scheduleFrame(){if(!renderVisible||paused)return;clearTimeout(renderTimer);renderTimer=setTimeout(requestRender,Math.max(0,frameInterval()-(performance.now()-lastRender)))}
-function frameInterval(){const active=dragging||time-announcementStart<3.5||mood.flutter>.001;return active?1000/30:mood.sleep>.85?1000/10:1000/20}
+function scheduleFrame(){if(!renderVisible||paused||settled())return;clearTimeout(renderTimer);renderTimer=setTimeout(requestRender,Math.max(0,frameInterval()-(performance.now()-lastRender)))}
+function frameInterval(){const active=dragging||time-announcementStart<3.5||mood.flutter>.001;return active?1000/30:mood.sleep>.85&&!(performance.now()<stirEnd)?1000/(desktop?.debug?.sleepyFPS??10):1000/(desktop?.debug?.idleFPS??20)}
 function updateRenderVisibility(){const wasVisible=renderVisible;renderVisible=nativeVisible&&!document.hidden;if(!renderVisible){clearTimeout(renderTimer);return}if(!wasVisible){last=performance.now();lastRender=-Infinity;invalidateRender()}}
-function frame(now){if(desktop?.mode==='manager'||!renderVisible)return;if(paused&&!needsRender)return;const interval=frameInterval();if(!needsRender&&now-lastRender<interval-.5){scheduleFrame();return}lastRender=now;needsRender=false;const dt=Math.min((now-last)/1000,.1);last=now;if(!paused)time+=dt;
+function frame(now){if(desktop?.mode==='manager'||!renderVisible)return;if(paused&&!needsRender)return;const interval=frameInterval();if(!needsRender&&now-lastRender<interval-.5){scheduleFrame();return}lastRender=now;needsRender=false;const dt=Math.min((now-last)/1000,.1);last=now;
+const restful=desktop&&!paused&&!dragging&&!hovering&&!activeThoughtPersistent&&time-lastInteraction>60&&mood.sleep>.97&&time-announcementStart>=3.5&&mood.flutter<=.001&&time-spinStart>=3.8&&peekabooReturn===Infinity;
+const stirring=restful&&now<stirEnd,afterStir=stirEnd>0&&!stirring;
+if(!restful)stillness-=dt/.6;else if(stirring)stillness=Math.max(0,stillness-dt/.7);else stillness+=dt/(afterStir?2:4);
+stillness=Math.max(0,Math.min(1,stillness));
+if(!restful)stopDoze();
+// A stir runs the sleepy cloth at about awake speed; the gain only changes while he is still.
+if(!paused)time+=dt*(1-stillness*stillness*(3-2*stillness))*(stirEnd>0?2.4:1);
 if(!paused&&!dragging&&!hovering){const k=1-Math.exp(-dt*1.1);position.x+=(target.x-position.x)*k;position.y+=(target.y-position.y)*k;if(Math.hypot(target.x-position.x,target.y-position.y)<3)swimming=false;if(mood.sleep<.2&&!activeThoughtPersistent&&time>nextAdventure&&peekabooReturn===Infinity&&companion.visibility>.9999&&time-spinStart>=3.8){if(desktop){const choice=Math.random();if(choice<.35)spin();else if(choice<.65)behaviours.curious()}else{Math.random()<.35?spin():swim()}nextAdventure=time+90+Math.random()*90}}
 if(desktop&&!paused&&!dragging&&!hovering&&!activeThoughtPersistent){idleClock+=dt*mood.speed;wander=idleOffset(idleClock)}
-const t=time;draw(t);pet.style.transform=`translate(${position.x+(desktop?wander.x:0)}px,${position.y+(desktop?wander.y:(dragging?0:Math.sin(t*1.15)*7))}px)`;positionBubble();reportHitRegions(now);scheduleFrame()}
+const t=time;draw(t);pet.style.transform=`translate(${position.x+(desktop?wander.x:0)}px,${position.y+(desktop?wander.y:(dragging?0:Math.sin(t*1.15)*7))}px)`;positionBubble();reportHitRegions(now);scheduleFrame();if(settled()){startDoze();if(!stirTimer)scheduleStir()}}
 window.addEventListener('mnemo-visible',event=>{nativeVisible=Boolean(event.detail);updateRenderVisibility()});
 addEventListener('visibilitychange',updateRenderVisibility);
 window.addEventListener('pointermove',()=>{if(dragging)invalidateRender()});

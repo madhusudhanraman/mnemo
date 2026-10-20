@@ -4,6 +4,10 @@ These notes are shared by every coding agent working on this repo (Claude Code r
 
 Mnemo is developed on two Macs (personal and work), coordinated through GitHub. Feature branches only; PRs go into `main`. Never commit or push to `main` directly, and never merge PRs.
 
+## Current work
+
+Idle energy and the settle/stir behaviour: see `docs/performance.md` for status, measurements and open questions. Read it before continuing that work.
+
 ## Machine handoff
 
 When the user says they are switching to the other machine (leaving this one):
