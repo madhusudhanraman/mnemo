@@ -6,7 +6,7 @@ Mnemo is developed on two Macs (personal and work), coordinated through GitHub. 
 
 ## Current work
 
-Idle energy and the settle/stir behaviour: see `docs/performance.md` for status, measurements and open questions. Read it before continuing that work.
+Native Mac integration on `native-mac`: see `docs/native-mac.md`. Menu navigation, installation/startup, Dock visibility and native Settings are implemented locally; display-position recovery is implemented locally; multi-display/Spaces hardware verification is next. For idle energy and settle/stir behaviour, read `docs/performance.md` before continuing that work.
 
 ## Publishing changes
 
@@ -26,7 +26,7 @@ When the user says they have switched to this machine (arriving):
 1. `git fetch --prune`.
 2. If the working tree has uncommitted changes, stop and ask before touching anything.
 3. Switch to the branch they were working on (ask if unclear; the most recently updated remote branch is the usual guess) and `git pull --ff-only`. If it cannot fast-forward, stop and explain; never force-push or reset.
-4. Rebuild and relaunch: quit any running Mnemo, then `node prototype/build.mjs && sh desktop/build.sh && open desktop/build/Mnemo.app`.
+4. Rebuild and relaunch: quit any running Mnemo, then `node prototype/build.mjs && sh desktop/build.sh && sh desktop/install.sh && open ~/Applications/Mnemo.app`. Ordinary build-folder launches redirect to the installed app; use `--development` explicitly when testing an uninstalled build.
 
 ## Per-machine setup (not in Git)
 

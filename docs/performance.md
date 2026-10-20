@@ -96,4 +96,4 @@ Stirs show as 5–8% spikes in 10-second windows, with near 0% between them. The
 ## Per-machine notes
 
 - Auto colour needs Screen Recording permission, which macOS ties to the code signature. Ad-hoc builds lose it on every rebuild. Each Mac needs its own self-signed code-signing certificate named `Mnemo Local Development`, made with `/System/Library/CoreServices/Certificate Assistant.app`. On macOS 27, Keychain Access no longer has the Certificate Assistant menu. If `security find-identity -v -p codesigning` doesn't list it (an untrusted self-signed certificate won't be listed), put its SHA-1 hash from `security find-identity -p codesigning` into the git-ignored `desktop/signing-identity.local`. Then grant Screen Recording once.
-- The built app is `desktop/build/Mnemo.app` inside the clone. Nothing copies it to `~/Applications` yet.
+- The built app is `desktop/build/Mnemo.app` inside the clone. The later `native-mac` work adds `sh desktop/install.sh` to install it at `~/Applications/Mnemo.app`; ordinary launches of build-folder copies then use the installed app. See `docs/native-mac.md`.
