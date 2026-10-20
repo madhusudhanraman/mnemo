@@ -14,6 +14,8 @@ input,select{font:inherit;color:inherit;background:#191825;border:1px solid #4c4
 #reminder-form .schedule-modes{display:flex;gap:4px;margin:18px 0 12px;background:#191825;border-radius:12px;padding:3px}#reminder-panel .schedule-modes button{flex:1;margin:0;border:0;background:transparent;color:#b9adca;border-radius:9px}#reminder-panel .schedule-modes button[aria-pressed=true]{background:#42384f;color:#eee7fa}#reminder-form .month-nav{display:flex;align-items:center;justify-content:space-between;margin-top:10px}#reminder-panel .month-nav button{border:0;background:transparent;font-size:20px;padding:3px 12px;margin:0}#reminder-form .weekdays,#picker-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));text-align:center;gap:3px}#reminder-form .weekdays{font-size:11px;color:#b9adca;margin:8px 0}#reminder-panel #picker-days button{margin:0;padding:6px 0;border:0;border-radius:8px;background:transparent;min-height:30px;font-size:12px}#reminder-panel #picker-days button[aria-pressed=true],#reminder-panel #clock-face button[aria-pressed=true]{background:#d3c4ee;color:#30233e}#reminder-panel #picker-days button:disabled{opacity:.25;cursor:default}#reminder-form .clock-header{display:flex;align-items:center;justify-content:center;gap:3px;margin:16px 0 8px}#reminder-panel .clock-header button{margin:0;background:transparent;border:0;border-radius:8px;padding:5px 8px;color:#b9adca}#reminder-panel .clock-header button[aria-pressed=true]{background:#42384f;color:#eee7fa}#clock-face{position:relative;width:176px;height:176px;margin:0 auto;background:#191825;border-radius:50%;touch-action:none}#reminder-panel #clock-face button{position:absolute;transform:translate(-50%,-50%);width:29px;height:29px;padding:0;margin:0;border:0;background:transparent;font-size:12px;z-index:1}#clock-face .clock-hand{position:absolute;left:calc(50% - 1px);bottom:50%;height:52px;width:2px;transform-origin:center bottom;background:#b8a4e2;pointer-events:none}#clock-face:after{content:"";position:absolute;left:calc(50% - 3px);top:calc(50% - 3px);width:6px;height:6px;border-radius:50%;background:#b8a4e2}#date-summary{text-align:center;font-size:12px;margin:12px 0 0;color:#b9adca}#reminder-form .form-bottom{justify-content:flex-end;margin-top:12px}
 #reminder-form .picker-tabs{display:flex;justify-content:center;gap:12px}#reminder-panel .picker-tabs button{border:0;border-radius:0;background:transparent;padding:5px 2px;color:#b9adca}#reminder-panel .picker-tabs button[aria-pressed=true]{color:#eee7fa;border-bottom:1px solid #b8a4e2}
 #reminder-form .time-wheels{display:flex;align-items:center;justify-content:center;gap:12px;margin:20px 0 10px}#reminder-form .time-wheel{height:180px;width:66px;overflow-y:auto;padding:72px 0;scroll-snap-type:y mandatory;overscroll-behavior:contain;scrollbar-width:none;border-radius:12px;background:linear-gradient(to bottom,transparent 72px,#42384f 72px,#42384f 108px,transparent 108px);mask-image:linear-gradient(to bottom,transparent,#000 35%,#000 65%,transparent)}#reminder-form .time-wheel::-webkit-scrollbar{display:none}#reminder-panel .time-wheel button{display:block;height:36px;width:100%;min-height:36px;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:#b9adca;font-size:19px;scroll-snap-align:center;flex-shrink:0}#reminder-panel .time-wheel button[aria-selected=true]{color:#eee7fa;font-weight:500}#reminder-form .wheel-colon{font-size:20px}#reminder-form .period-picker{display:flex;flex-direction:column;gap:5px;margin-left:4px}#reminder-panel .period-picker button{margin:0;border:0;border-radius:10px;padding:7px 10px;background:transparent;color:#b9adca}#reminder-panel .period-picker button[aria-pressed=true]{background:#42384f;color:#eee7fa}
+
+#spotify-caption{position:fixed;z-index:3;display:flex;width:max-content;max-width:220px;align-items:center;gap:8px;padding:7px 9px;border-radius:13px;background:#f4effff5;color:#372b52;box-shadow:0 3px 14px #0002;opacity:0;pointer-events:none;transition:opacity .3s;font-size:12px;line-height:1.3}#spotify-caption.show{opacity:1;pointer-events:auto}.spotify-track{flex:1;min-width:0}.spotify-title,.spotify-artist{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.spotify-title{font-weight:500}.spotify-artist{font-size:11px;color:#796b8c;margin-top:2px}#spotify-caption button{margin:0;border:0;padding:7px 5px;background:transparent;color:#594577;font-size:11px;flex-shrink:0}#spotify-caption button:hover{background:#e3d9f2}#spotify-caption button:disabled{opacity:.4}.manager-mode #spotify-caption{display:none}
 </style>
 <main><small>MNEMO / A LITTLE SPIRIT</small><h1>A little presence.<br>A gentle reminder.</h1><p>Soft fabric, a rippling hem, and the occasional happy spin. Drag your companion anywhere.</p><div><button id="remind">My reminders</button></div></main>
 <div id="pet" role="button" tabindex="0" aria-label="Mnemo — add a reminder" title="Click to add a reminder · drag to move"><canvas id="art" width="640" height="640" aria-hidden="true" style="width:100%;height:100%"></canvas></div><div id="bubble" role="status">A gentle nudge: take a little stretch.</div><footer>3D prototype · drag to move · Shift + drag to turn · click Mnemo to add a reminder</footer>
@@ -54847,6 +54849,44 @@ function fitGhostHeight(companion,camera,targetHeight,viewportHeight,baseline){
  return clothScreenBounds(companion,camera,viewportHeight);
 }
 
+// Hover UI is independent of the 3D renderer; no extra animation loop.
+function createSpotifyCaption({desktop,pet,bubble,isReminder,onRegions,onHover=()=>{}}){
+ const caption=document.createElement('div');caption.id='spotify-caption';caption.setAttribute('aria-label','Now playing on Spotify');
+ const track=document.createElement('div');track.className='spotify-track';
+ const title=document.createElement('div');title.className='spotify-title';
+ const artist=document.createElement('div');artist.className='spotify-artist';
+ const skip=document.createElement('button');skip.type='button';skip.textContent='Skip';skip.setAttribute('aria-label','Skip Spotify track');
+ track.append(title,artist);caption.append(track,skip);document.body.append(caption);
+ let state={playing:false},over=false,showTimer,hideTimer,visible=false;
+ function setVisible(value){visible=value;caption.classList.toggle('show',value);caption.inert=!value;onRegions()}
+ function eligible(){return state.playing&&!isReminder()&&!bubble.classList.contains('show')}
+ function updateHover(value){
+  over=value;clearTimeout(showTimer);clearTimeout(hideTimer);
+  if(value&&eligible()){showTimer=setTimeout(()=>{if(over&&eligible())setVisible(true)},300)}
+  else hideTimer=setTimeout(()=>{if(!over)setVisible(false)},500);
+ }
+ caption.inert=true;
+ caption.addEventListener('pointerenter',()=>{updateHover(true);onHover(true)});
+ caption.addEventListener('pointerleave',()=>{updateHover(false);onHover(false)});
+ caption.addEventListener('focusin',()=>updateHover(true));
+ caption.addEventListener('focusout',event=>{if(!caption.contains(event.relatedTarget))updateHover(false)});
+ if(!desktop){pet.addEventListener('pointerenter',()=>updateHover(true));pet.addEventListener('pointerleave',()=>updateHover(false))}
+ skip.onclick=async()=>{skip.disabled=true;skip.textContent='…';try{await desktop?.spotifySkip?.();skip.title=''}catch(error){skip.title=error.message}finally{skip.disabled=false;skip.textContent='Skip'}};
+ window.addEventListener('mnemo-spotify',event=>{
+  state=event.detail||{playing:false};title.textContent=String(state.title||'');artist.textContent=String(state.artist||'');
+  track.title=[state.title,state.artist].filter(Boolean).join(' — ');
+  if(!eligible())setVisible(false);else if(over&&!visible)updateHover(true);
+ });
+ function sync(){if(!eligible()){clearTimeout(showTimer);setVisible(false)}}
+ function position(rect){
+  const maxWidth=Math.min(220,innerWidth-16);caption.style.maxWidth=`${maxWidth}px`;
+  const width=Math.min(caption.offsetWidth||maxWidth,maxWidth);
+  caption.style.left=`${Math.max(8,Math.min(innerWidth-width-8,rect.left+rect.width/2-width/2))}px`;
+  caption.style.top=`${Math.max(8,Math.min(innerHeight-caption.offsetHeight-8,rect.bottom+7))}px`;
+ }
+ return {element:caption,updateHover,sync,position,get interactive(){return visible}};
+}
+
 // Shared UI for the local prototype and native macOS app.
 function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
  const native=window.mnemoDesktop;
@@ -55184,17 +55224,17 @@ window.addEventListener('mnemo-visible',event=>{nativeVisible=Boolean(event.deta
 addEventListener('visibilitychange',updateRenderVisibility);
 window.addEventListener('pointermove',()=>{if(dragging)invalidateRender()});
 let announcementTimer;
-function hideThought(){announcementReveal=null;clearTimeout(announcementTimer);announcementStart=-100;activeThoughtPersistent=false;clearTimeout(bubbleTimer);bubble.classList.remove('show');invalidateRender()}
+function hideThought(){announcementReveal=null;clearTimeout(announcementTimer);announcementStart=-100;activeThoughtPersistent=false;spotifyCaption?.sync();clearTimeout(bubbleTimer);bubble.classList.remove('show');invalidateRender()}
 function showThought(text,{persistent=false,meta='',actions=[],onShown=()=>{},entrance='full'}={}){
  queueGlowOnly=persistent&&entrance!=='full';queueFlutterAllowed=entrance==='done';
  if(queueFlutterAllowed)behaviours.flutter();
  if(persistent)wakeCompanion();
- activeThoughtPersistent=persistent;companion.setVanished(false);peekabooReturn=Infinity;nextPeekaboo=time+180+Math.random()*120;
+ activeThoughtPersistent=persistent;spotifyCaption?.sync();companion.setVanished(false);peekabooReturn=Infinity;nextPeekaboo=time+180+Math.random()*120;
  clearTimeout(announcementTimer);clearTimeout(bubbleTimer);bubble.classList.remove('show');bubble.replaceChildren();
  if(meta){const label=document.createElement('span');label.className='thought-meta';label.textContent=meta;bubble.append(label)}
  const content=document.createElement('div');content.className='thought-content';content.textContent=text;bubble.append(content);
  if(actions.length){const row=document.createElement('div');row.className='thought-actions';for(const action of actions){const button=document.createElement('button');button.type='button';button.textContent=action.label;button.onclick=action.run;row.append(button)}bubble.append(row)}
- const reveal=()=>{spinStart=-100;bubble.classList.add('show');onShown();if(!persistent)bubbleTimer=setTimeout(hideThought,5000)};
+ const reveal=()=>{spinStart=-100;bubble.classList.add('show');spotifyCaption.sync();onShown();if(!persistent)bubbleTimer=setTimeout(hideThought,5000)};
  if(persistent&&!paused&&!reduced){
   companion.setVanished(false,true);announcementStart=time;announcementBaseYaw=model.rotation.y;spinStart=-100;
   nextAdventure=Math.max(nextAdventure,time+90);
@@ -55203,12 +55243,14 @@ function showThought(text,{persistent=false,meta='',actions=[],onShown=()=>{},en
  invalidateRender();
 }
 let lastHitReport=0,lastRegionsJSON='';
+const spotifyCaption=createSpotifyCaption({desktop,pet,bubble,isReminder:()=>activeThoughtPersistent,onRegions:()=>{lastHitReport=0;reportHitRegions(performance.now());invalidateRender()},onHover:value=>{hovering=value;if(value)wakeCompanion()}});
 function reportHitRegions(now){
  if(!desktop||desktop.mode!=='companion'||now-lastHitReport<200)return;lastHitReport=now;
  const r=canvas.getBoundingClientRect();
  const regions=[{x:r.left+r.width*.24,y:r.top+r.height*.20,width:r.width*.52,height:r.height*.66}];
- for(const element of [bubble]){
+ for(const element of [bubble,spotifyCaption.element]){
   if(element===bubble&&!bubble.classList.contains('show'))continue;
+  if(element===spotifyCaption.element&&!spotifyCaption.interactive)continue;
   const b=element.getBoundingClientRect();regions.push({x:b.left-4,y:b.top-4,width:b.width+8,height:b.height+8});
  }
  const rounded=regions.map(r=>{const x=Math.floor(r.x/4)*4,y=Math.floor(r.y/4)*4;return {x,y,width:Math.ceil((r.x+r.width-x)/4)*4,height:Math.ceil((r.y+r.height-y)/4)*4}});
@@ -55225,7 +55267,7 @@ const reminderUI=startReminders({showThought,hideThought,onDone:celebrateDone,on
 window.addEventListener('mnemo-open-reminders',reminderUI.open);
 window.addEventListener('mnemo-pause',toggleMotion);
 
-if(desktop)window.addEventListener('mnemo-hover',event=>{hovering=Boolean(event.detail);if(hovering){wakeCompanion();if(!activeThoughtPersistent)behaviours.curious()}});
+if(desktop)window.addEventListener('mnemo-hover',event=>{hovering=Boolean(event.detail);spotifyCaption.updateHover(hovering);if(hovering){wakeCompanion();if(!activeThoughtPersistent)behaviours.curious()}});
 window.addEventListener('pointerdown',wakeCompanion);
 
 
@@ -55239,6 +55281,9 @@ function applyCompanionSize(height){
 }
 if(desktop?.preferredHeight)applyCompanionSize(desktop.preferredHeight);
 window.addEventListener('mnemo-size',event=>{applyCompanionSize(Number(event.detail));invalidateRender()});
+
+const positionMusic=()=>{const r=canvas.getBoundingClientRect();spotifyCaption.position({left:r.left+r.width*.24,bottom:r.top+r.height*.86,width:r.width*.52})};
+const originalPositionBubble=positionBubble;positionBubble=()=>{originalPositionBubble();positionMusic()};
 
 requestRender();
 </script>

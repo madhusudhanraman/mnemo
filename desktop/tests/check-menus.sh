@@ -13,6 +13,6 @@ Path(sys.argv[2]).write_text(source+'\n'+(root/'tests/menu-check.swift').read_te
 PY
 swiftc -swift-version 5 -module-cache-path /tmp/mnemo-swift-cache \
   -framework ScreenCaptureKit -framework Cocoa -framework WebKit -framework UserNotifications -framework ServiceManagement \
-  "$DESKTOP_ROOT/Sources/SettingsWindow.swift" "$DESKTOP_ROOT/Sources/AppLifecycle.swift" "$DESKTOP_ROOT/Sources/ReminderStore.swift" "$DESKTOP_ROOT/Sources/MenuIcon.swift" \
+  "$DESKTOP_ROOT/Sources/SpotifyPlayback.swift" "$DESKTOP_ROOT/Sources/SettingsWindow.swift" "$DESKTOP_ROOT/Sources/AppLifecycle.swift" "$DESKTOP_ROOT/Sources/ReminderStore.swift" "$DESKTOP_ROOT/Sources/MenuIcon.swift" \
   "$DESKTOP_ROOT/Sources/BackgroundColour.swift" "$CHECK_ROOT/main.swift" -o "$CHECK_ROOT/check"
 "$CHECK_ROOT/check"

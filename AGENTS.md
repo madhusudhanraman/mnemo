@@ -6,7 +6,7 @@ Mnemo is developed on two Macs (personal and work), coordinated through GitHub. 
 
 ## Current work
 
-Native Mac integration on `native-mac`: see `docs/native-mac.md`. Menu navigation, installation/startup, Dock visibility and native Settings are implemented locally; display-position recovery is implemented locally; multi-display/Spaces hardware verification is next. For idle energy and settle/stir behaviour, read `docs/performance.md` before continuing that work.
+Native Mac and Spotify work is being integrated into main on 20 October 2026 at the user’s explicit request. Known follow-up: Spotify caption clips near screen edges; see `docs/spotify.md`. Native Mac integration: see `docs/native-mac.md`. Menu navigation, installation/startup, Dock visibility and native Settings are implemented locally; display-position recovery is implemented locally; multi-display/Spaces hardware verification is next. For idle energy and settle/stir behaviour, read `docs/performance.md` before continuing that work.
 
 ## Publishing changes
 

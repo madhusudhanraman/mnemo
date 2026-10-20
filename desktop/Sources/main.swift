@@ -25,6 +25,9 @@ final class Bridge: NSObject, WKScriptMessageHandler {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSMenuDelegate, NSMenuItemValidation {
+    let spotify=SpotifyPlayback()
+    var spotifyState:[String:Any] = ["playing":false]
+    var spotifyStatus:String?
     let backgroundColour = BackgroundColour()
     let loginItem=LoginItemController()
     var loginState=LoginItemState.disabled
@@ -81,8 +84,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             UNUserNotificationCenter.current().removeAllDeliveredNotifications()
             loginState=loginItem.state
             createMenu(); createGhost();startupReady=true;checkDue()
+            spotify.onChange={ [weak self] state in self?.spotifyState=state;self?.sendSpotify() }
+            spotify.onStatus={ [weak self] status in self?.spotifyStatus=status;self?.refreshSpotifySettings() }
+            spotify.setEnabled(UserDefaults.standard.bool(forKey:"spotifyOnHover"))
             DistributedNotificationCenter.default().addObserver(self,selector:#selector(revealCompanion),name:AppInstallation.revealNotification,object:nil)
-            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.checkDue(); self?.updateColour(); self?.updateSystemActivity() }
+            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.checkDue(); self?.updateColour(); self?.updateSystemActivity(); if self?.pointerIsOverCompanion == true && self?.screenAsleep == false && self?.sessionInactive == false { self?.spotify.refresh() } }
             NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
             let workspace=NSWorkspace.shared.notificationCenter
             for name in [NSWorkspace.screensDidSleepNotification,NSWorkspace.screensDidWakeNotification,NSWorkspace.sessionDidResignActiveNotification,NSWorkspace.sessionDidBecomeActiveNotification] {
@@ -126,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         ghostWeb.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-system-activity',{detail:\(active ? "true" : "false")}))",completionHandler:nil)
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if webView === ghostWeb { lastSentSystemActive=nil;updateSystemActivity();sendVisibility() }
+        if webView === ghostWeb { lastSentSystemActive=nil;updateSystemActivity();sendVisibility();sendSpotify() }
     }
     // Optional rendering overrides for performance experiments, e.g. `defaults write local.mnemo.companion debugIdleFPS -float 12`.
     func debugRendering() -> String {
@@ -143,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         (()=>{let next=0;const pending=new Map();window.mnemoNativeReply=reply=>{const p=pending.get(reply.id);if(!p)return;pending.delete(reply.id);reply.error?p.reject(new Error(reply.error)):p.resolve(reply.result)};
         const call=(method,payload={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.webkit.messageHandlers.mnemo.postMessage({id,method,payload})});
         const send=(method,payload={})=>window.webkit.messageHandlers.mnemo.postMessage({method,payload});
-        window.mnemoDesktop={mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions})};
+        window.mnemoDesktop={mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifySkip:()=>call('spotifySkip')};
         window.addEventListener('error',e=>send('scriptError',{message:e.message}));
         })();
         """
@@ -194,13 +200,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                     let item=NSMenuItem();item.representedObject=value;self?.chooseColour(item)
                 },
                 loginSettings:{ [weak self] in self?.openLoginSettings() },
-                refresh:{ [weak self] in self?.refreshLoginItemState() }
+                refresh:{ [weak self] in self?.refreshLoginItemState() },
+                spotify:{ [weak self] value in
+                    UserDefaults.standard.set(value,forKey:"spotifyOnHover");self?.spotify.setEnabled(value);self?.refreshSpotifySettings()
+                }
             ))
         }
         refreshLoginItemState();refreshSettings()
         NSApp.activate(ignoringOtherApps:true);settingsController?.showWindow(nil);settingsController?.window?.makeKeyAndOrderFront(nil)
     }
+    func sendSpotify() {
+        guard let data=try? JSONSerialization.data(withJSONObject:spotifyState),let json=String(data:data,encoding:.utf8) else { return }
+        ghostWeb?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-spotify',{detail:\(json)}))",completionHandler:nil)
+    }
+    func refreshSpotifySettings() {
+        settingsController?.updateSpotify(enabled:UserDefaults.standard.bool(forKey:"spotifyOnHover"),status:spotifyStatus)
+    }
     func refreshSettings() {
+        refreshSpotifySettings()
         settingsController?.update(showDock:showInDock,login:loginState,busy:loginChangePending,message:loginMessage,error:loginError,installed:AppInstallation.isInstalled,colour:UserDefaults.standard.string(forKey:"ghostColour") ?? "white")
     }
     func setShowInDock(_ visible:Bool) {
@@ -398,6 +415,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let id = body["id"], payload = body["payload"] as? [String: Any] ?? [:]
         do {
             switch method {
+            case "spotifySkip":
+                guard mode == "companion",spotify.enabled else { throw ReminderError.invalid("Enable Spotify on Hover in Settings.") }
+                spotify.skip { [weak self,weak web] error in self?.reply(web:web,id:id,result:error == nil ? true:nil,error:error) }
             case "list": reply(web: web, id: id, result: try JSONSerialization.jsonObject(with: Data(store.json().utf8)))
             case "save":
                 guard let text = payload["text"] as? String, let dueAt = payload["dueAt"] as? Double else { throw ReminderError.invalid("A reminder needs text and a valid time.") }
@@ -486,6 +506,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         if ghost.ignoresMouseEvents == interactive { ghost.ignoresMouseEvents = !interactive }
         if pointerIsOverCompanion != interactive {
             pointerIsOverCompanion=interactive
+            if interactive { spotify.refresh(force:true) }
             ghostWeb.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-hover',{detail:\(interactive ? "true" : "false")}))",completionHandler:nil)
         }
     }

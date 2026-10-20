@@ -9,6 +9,7 @@ const members=exported[1].split(',').map(member=>{const [local,name]=member.trim
 const bundledThree=`const THREE=(()=>{${three.slice(0,exported.index)}\nreturn {${members}};})();`;
 const model=read('ghost.mjs').replace(/^import .*;\n/gm,'').replace('export function createGhost','function createGhost');
 template=template.replace(/^import \* as THREE from [^;]+;/m,()=>bundledThree);
+const spotifyCaption=read('spotify-caption.mjs').replace('export function createSpotifyCaption','function createSpotifyCaption');
 const reminders=read('reminders.mjs').replace('export function startReminders','function startReminders');
 const fade=read('fade-renderer.mjs').replace(/^import .*;\n/gm,'').replace('export function createFadeRenderer','function createFadeRenderer');
 const sizeUtils=read('size-preview.mjs').replace(/^import .*;\n/gm,'').replace(/export function /g,'function ');
@@ -16,7 +17,7 @@ const idle=read('idle-motion.mjs').replace('export function idleOffset','functio
 const gpuCode=read('cloth-gpu.mjs').replace(/export (function|const) /g,'$1 ');
 const behaviourCode=read('behaviours.mjs').replace(/export function /g,'function ');
 const reminderMotion=read('reminder-motion.mjs').replace(/export function /g,'function ');
-const page=template.replace('/* CLOTH_GPU */',()=>gpuCode).replace('/* COMPANION_BEHAVIOURS */',()=>behaviourCode).replace('/* REMINDER_MOTION */',()=>reminderMotion).replace('/* COMPANION_MODEL */',()=>model).replace('/* FADE_RENDERER */',()=>fade).replace('/* IDLE_MOTION */',()=>idle).replace('/* SIZE_UTILS */',()=>sizeUtils).replace('/* REMINDER_MODULE */',()=>reminders).replace('/* START_REMINDERS */',()=>read('src/reminder-start.js'));
+const page=template.replace('/* CLOTH_GPU */',()=>gpuCode).replace('/* COMPANION_BEHAVIOURS */',()=>behaviourCode).replace('/* REMINDER_MOTION */',()=>reminderMotion).replace('/* COMPANION_MODEL */',()=>model).replace('/* FADE_RENDERER */',()=>fade).replace('/* IDLE_MOTION */',()=>idle).replace('/* SIZE_UTILS */',()=>sizeUtils).replace('/* SPOTIFY_CAPTION */',()=>spotifyCaption).replace('/* REMINDER_MODULE */',()=>reminders).replace('/* START_REMINDERS */',()=>read('src/reminder-start.js'));
 
 writeFileSync(new URL('index.html',root),page);
 writeFileSync(new URL('ghost.html',root),page);

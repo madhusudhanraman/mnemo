@@ -15,4 +15,5 @@
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
 <key>NSScreenCaptureUsageDescription</key><string>Mnemo samples the background behind him to stay visible. Samples stay in memory and are never saved or sent.</string>
+<key>NSAppleEventsUsageDescription</key><string>Mnemo reads the current Spotify track on hover and skips tracks when you click Skip.</string>
 </dict></plist>

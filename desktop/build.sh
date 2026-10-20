@@ -20,7 +20,7 @@ cp "$DESKTOP_ROOT/Assets/Mnemo.icns" "$APP_DIR/Contents/Resources/Mnemo.icns"
 cp "$DESKTOP_ROOT/Info.plist" "$APP_DIR/Contents/Info.plist"
 swiftc -swift-version 5 -O -module-cache-path /tmp/mnemo-swift-cache \
   -framework ScreenCaptureKit -framework Cocoa -framework WebKit -framework UserNotifications -framework ServiceManagement \
-  "$DESKTOP_ROOT/Sources/SettingsWindow.swift" "$DESKTOP_ROOT/Sources/AppLifecycle.swift" "$DESKTOP_ROOT/Sources/ReminderStore.swift" "$DESKTOP_ROOT/Sources/MenuIcon.swift" "$DESKTOP_ROOT/Sources/BackgroundColour.swift" "$DESKTOP_ROOT/Sources/main.swift" \
+  "$DESKTOP_ROOT/Sources/SpotifyPlayback.swift" "$DESKTOP_ROOT/Sources/SettingsWindow.swift" "$DESKTOP_ROOT/Sources/AppLifecycle.swift" "$DESKTOP_ROOT/Sources/ReminderStore.swift" "$DESKTOP_ROOT/Sources/MenuIcon.swift" "$DESKTOP_ROOT/Sources/BackgroundColour.swift" "$DESKTOP_ROOT/Sources/main.swift" \
   -o "$APP_DIR/Contents/MacOS/Mnemo"
 if [ "$MNEMO_SIGNING_IDENTITY" = "-" ]; then
   printf '%s\n' 'Warning: ad-hoc signing. Screen Recording permission may need granting again after rebuilding.' >&2

@@ -47,9 +47,9 @@ Implemented locally: remember normalized resting positions by display ID, restor
 
 The companion continues to join all Spaces with fullscreen auxiliary behavior. The editor and Settings remain ordinary windows in their own Space. Space changes refresh visibility and background sampling without activating Mnemo or opening the editor. Physical monitor hot-plug, fullscreen across other apps and Stage Manager still require live verification.
 
-## Future: Spotify companion
+## Spotify companion
 
-When Spotify is playing and no reminder is being shown, optionally display the current track with a Skip control. Reminders always take priority. Keep this opt-in and visually quiet; pause or hide the track display when playback stops. Investigate supported local integration and any Automation permission before implementation. No Spotify permission or integration has been added yet.
+When Spotify is playing and no reminder is being shown, optionally display the current track with a Skip control. Reminders always take priority. Keep this opt-in and visually quiet; pause or hide the track display when playback stops. Investigate supported local integration and any Automation permission before implementation. Implemented separately on spotify-integration; see docs/spotify.md.
 
 ### Mission Control
 

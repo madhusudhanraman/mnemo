@@ -8,6 +8,7 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
         let colour:(String)->Void
         let loginSettings:()->Void
         let refresh:()->Void
+        var spotify:(Bool)->Void = {_ in}
     }
     private let actions:Actions
     let dockToggle=NSButton(checkboxWithTitle:"Show in Dock",target:nil,action:nil)
@@ -15,13 +16,17 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
     let loginStatus=NSTextField(wrappingLabelWithString:"")
     let loginSettingsButton=NSButton(title:"Open Login Settings…",target:nil,action:nil)
     let colourPicker=NSPopUpButton(frame:.zero,pullsDown:false)
+    let spotifyToggle=NSButton(checkboxWithTitle:"Spotify on Hover",target:nil,action:nil)
+    let spotifyStatus=NSTextField(wrappingLabelWithString:"")
     let sizeButton=NSButton(title:"Size…",target:nil,action:nil)
     init(actions:Actions) {
         self.actions=actions
-        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:390,height:245),styleMask:[.titled,.closable],backing:.buffered,defer:false)
+        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:390,height:370),styleMask:[.titled,.closable],backing:.buffered,defer:false)
         window.title="Mnemo Settings";window.isReleasedWhenClosed=false
         super.init(window:window)
         window.delegate=self;window.center()
+        spotifyToggle.target=self;spotifyToggle.action=#selector(changeSpotify)
+        spotifyStatus.textColor = .secondaryLabelColor;spotifyStatus.maximumNumberOfLines=3;spotifyStatus.isHidden=true
         dockToggle.target=self;dockToggle.action=#selector(changeDock)
         loginToggle.target=self;loginToggle.action=#selector(changeLogin);loginToggle.allowsMixedState=true
         loginSettingsButton.target=self;loginSettingsButton.action=#selector(openLoginSettings)
@@ -35,7 +40,7 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
         let appearance=NSStackView(views:[NSTextField(labelWithString:"Colour"),colourPicker,sizeButton])
         appearance.orientation = .horizontal;appearance.spacing=10
         let separator=NSBox();separator.boxType = .separator
-        let stack=NSStackView(views:[dockToggle,loginToggle,loginStatus,loginSettingsButton,separator,appearance])
+        let stack=NSStackView(views:[dockToggle,loginToggle,loginStatus,loginSettingsButton,separator,appearance,spotifyToggle,spotifyStatus])
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=12;stack.detachesHiddenViews=true
         let content=window.contentView!;content.addSubview(stack);stack.translatesAutoresizingMaskIntoConstraints=false
         NSLayoutConstraint.activate([
@@ -44,7 +49,8 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
             stack.topAnchor.constraint(equalTo:content.topAnchor,constant:22),
             stack.bottomAnchor.constraint(lessThanOrEqualTo:content.bottomAnchor,constant:-22),
             separator.widthAnchor.constraint(equalTo:stack.widthAnchor),
-            loginStatus.widthAnchor.constraint(equalTo:stack.widthAnchor)
+            loginStatus.widthAnchor.constraint(equalTo:stack.widthAnchor),
+            spotifyStatus.widthAnchor.constraint(equalTo:stack.widthAnchor)
         ])
         loginStatus.isHidden=true;loginSettingsButton.isHidden=true
     }
@@ -59,6 +65,10 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
         loginSettingsButton.isHidden=message == nil && login != .requiresApproval
         if let item=colourPicker.itemArray.first(where:{$0.representedObject as? String == colour}) { colourPicker.select(item) }
     }
+    func updateSpotify(enabled:Bool,status:String?) {
+        spotifyToggle.state=enabled ? .on:.off;spotifyStatus.stringValue=status ?? "";spotifyStatus.isHidden=status == nil
+    }
+    @objc private func changeSpotify() { actions.spotify(spotifyToggle.state == .on) }
     func windowDidBecomeKey(_ notification:Notification) { actions.refresh() }
     @objc private func changeDock() { actions.dock(dockToggle.state == .on) }
     @objc private func changeLogin() { actions.login() }
