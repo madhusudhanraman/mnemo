@@ -24,7 +24,7 @@ Set a reminder in days, or choose a date and time. When it is due, Mnemo glows a
 - **Remind Me Later** postpones it by three hours.
 - Multiple reminders queue in deadline order.
 
-No macOS notification banners. Reminders are saved locally and catch up after sleep or relaunch. Mnemo must be running; launch at login is not yet configured.
+No macOS notification banners. Reminders are saved locally and catch up after sleep or relaunch. Mnemo must be running. Enable **Launch at Login** in the menu if you want him to start quietly when you sign in.
 
 ## Build and run
 
@@ -33,7 +33,9 @@ Requires macOS, Apple Command Line Tools and Node.js. No npm install is needed.
 ```sh
 node prototype/build.mjs
 sh desktop/build.sh
-open desktop/build/Mnemo.app
+# Quit any running Mnemo, then install:
+sh desktop/install.sh
+open ~/Applications/Mnemo.app
 ```
 
 This is a development build, not a notarised release. For stable Screen Recording permission across rebuilds, configure a signing identity as described in [desktop development](desktop/README.md).

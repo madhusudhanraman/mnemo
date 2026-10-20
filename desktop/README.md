@@ -8,13 +8,15 @@ Choose **Days** or **Date & Time**. The custom picker has a calendar and an scro
 
 When a reminder is due, Mnemo glows and spins before showing a thought bubble. Choose **Done** or **Remind Me Later**. Later postpones by three hours. Unanswered bubbles remain until acted on, including after sleep or relaunch. Multiple due reminders wait in deadline order. The first gets the full entrance; subsequent reminders glow without a pirouette, with a spiral flutter after Done. Reduce Motion skips the prelude. There are no macOS notification banners or notification permission requests.
 
-Reminders are saved in `~/Library/Application Support/Mnemo/reminders.json`. Mnemo catches up after sleep or relaunch, but must be running to show reminders. Launch at login is not yet configured.
+Reminders are saved in `~/Library/Application Support/Mnemo/reminders.json`. Mnemo catches up after sleep or relaunch, but must be running to show reminders. Use **Launch at Login** in the menu to opt in to quiet startup: the companion appears without opening the reminder editor. The checkmark reflects macOS registration; an approval-pending state is shown separately.
 
 ## Appearance
 
-The menu bar offers size and colour controls. **Auto** colour samples the background behind Mnemo and needs Screen Recording permission. Samples stay in memory and are never saved or sent. **White** and **Lavender** need no screen permission. Size and position persist across launches.
+**Settings…** (Command-comma) offers Show in Dock, Launch at Login, colour and a size shortcut. The Dock icon is shown by default and can be hidden without removing the menu bar icon. Clicking the Dock icon opens reminders; closing the editor or Settings leaves the companion running. Quit Mnemo exits completely. Size and colour shortcuts also remain in the menu bar. **Auto** colour samples the background behind Mnemo and needs Screen Recording permission. Samples stay in memory and are never saved or sent. **White** and **Lavender** need no screen permission. Size and position persist across launches.
 
-The installed app is `~/Applications/Mnemo.app`.
+The installed app is `~/Applications/Mnemo.app`. Build-folder copies open the installed app when one exists. Duplicate instances cannot start another companion or scheduler. Closing an instance or a crash releases its process lock.
+
+Launch at Login uses `SMAppService.mainApp` and is available from the installed app only. It is not registered automatically. macOS may require approval in System Settings → General → Login Items. Registration runs off the UI thread. Approval or error feedback appears in the menu with an Open Login Settings action, so it cannot block menu navigation. Registration errors are not silently treated as success.
 
 ## Development
 
@@ -23,9 +25,14 @@ Requires macOS and Apple Command Line Tools:
 ```sh
 node prototype/build.mjs
 sh desktop/build.sh
+# Quit any running Mnemo before installing:
+sh desktop/install.sh
+open ~/Applications/Mnemo.app
 ```
 
-Builds reuse the local signing identity pinned in the ignored `desktop/signing-identity.local`, or `MNEMO_SIGNING_IDENTITY`. A failure with a selected identity stops the build. No keys or trust settings are created. Ad-hoc signing is a fallback only when no identity is configured; it can invalidate permissions across rebuilds. This app is not notarised for distribution.
+Builds reuse the local signing identity pinned in the ignored `desktop/signing-identity.local`, or `MNEMO_SIGNING_IDENTITY`. A failure with a selected identity stops the build. No keys or trust settings are created. Ad-hoc signing is a fallback only when no identity is configured; it can invalidate permissions across rebuilds. This app is not notarised for distribution. Installation verifies the signed staged copy before replacing the installed bundle and restores the prior copy on failure. Reminder data remains outside the app bundle.
+
+For an intentional development session, quit the installed app and use `open -n desktop/build/Mnemo.app --args --development`. Without this flag, the installed copy is used. Login startup is disabled for build-folder copies.
 
 Checks use disposable data:
 
@@ -37,6 +44,8 @@ node prototype/review/check-page.mjs
 node prototype/review/check-ghost.mjs
 node prototype/review/check-cloth-gpu.mjs
 node prototype/review/check-hover-tilt.mjs
+sh desktop/tests/check-menus.sh
+sh desktop/tests/check-startup.sh
 ```
 
 ## Resource use

@@ -1,6 +1,7 @@
 import Cocoa
 import WebKit
 import UserNotifications
+import ServiceManagement
 
 // The transparent canvas may extend offscreen while the companion remains visible.
 final class CompanionWebView: WKWebView {
@@ -8,6 +9,7 @@ final class CompanionWebView: WKWebView {
 }
 
 final class CompanionPanel: NSPanel {
+    static let companionBehavior:NSWindow.CollectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
     override var canBecomeKey: Bool { true }
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
@@ -22,13 +24,24 @@ final class Bridge: NSObject, WKScriptMessageHandler {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSMenuDelegate, NSMenuItemValidation {
+    let spotify=SpotifyPlayback()
+    var spotifyState:[String:Any] = ["playing":false]
+    var spotifyStatus:String?
     let backgroundColour = BackgroundColour()
+    let loginItem=LoginItemController()
+    var loginState=LoginItemState.disabled
+    var loginChangePending=false
+    var loginMessage:String?
+    var loginError:String?
+    var instanceLock:InstanceLock?
+    var startupReady=false
     var colourTicks = 0
     var nextColourSample=Date.distantPast
     var colourInterval=5.0
     var priorLuminance: Double?
     var sampledOrigin: NSPoint?
+    var displayObserver: NSObjectProtocol?
     var screenAsleep=false, sessionInactive=false
     var lastSentColour: Bool?
     var store: ReminderStore!
@@ -36,24 +49,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     var ghostWeb: WKWebView!
     var manager: NSWindow?
     var managerWeb: WKWebView?
+    var settingsController:MnemoSettingsController?
     var sizesWindow: NSWindow?
     var sizesWeb: WKWebView?
     var statusItem: NSStatusItem!
     var timer: Timer?
     var observers: [Any] = []
+    var mouseMonitors:[Any]=[]
     var hitRegions: [CGRect] = []
     var pointerIsOverCompanion: Bool?
     var lastSentSystemActive: Bool?
+    var trackingMenus=Set<ObjectIdentifier>()
     let testMode = CommandLine.arguments.contains("--test")
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
+            if !testMode {
+                if !CommandLine.arguments.contains("--development"),!AppInstallation.isInstalled,
+                   let installed=Bundle(url:AppInstallation.installedURL),installed.bundleIdentifier == AppInstallation.bundleID {
+                    let configuration=NSWorkspace.OpenConfiguration();configuration.activates=false
+                    NSWorkspace.shared.openApplication(at:AppInstallation.installedURL,configuration:configuration) { _,error in
+                        if let error=error { self.showError(error.localizedDescription) }
+                        NSApp.terminate(nil)
+                    }
+                    return
+                }
+                let lockURL=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("Mnemo/instance.lock")
+                guard let lock=try InstanceLock(url:lockURL) else { AppInstallation.revealRunningCopy();NSApp.terminate(nil);return }
+                instanceLock=lock
+            }
             let root = testMode ? URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Mnemo-test-\(ProcessInfo.processInfo.processIdentifier)") : FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Mnemo")
             store = try ReminderStore(url: root.appendingPathComponent("reminders.json"))
             // Cancel alerts scheduled by older builds; reminders now use thought bubbles only.
             UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
             UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-            createMenu(); createGhost(); checkDue()
-            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.checkDue(); self?.updateColour(); self?.updateSystemActivity() }
+            loginState=loginItem.state
+            createMenu(); createGhost();startupReady=true;checkDue()
+            spotify.onChange={ [weak self] state in self?.spotifyState=state;self?.sendSpotify() }
+            spotify.onStatus={ [weak self] status in self?.spotifyStatus=status;self?.refreshSpotifySettings() }
+            spotify.setEnabled(UserDefaults.standard.bool(forKey:"spotifyOnHover"))
+            DistributedNotificationCenter.default().addObserver(self,selector:#selector(revealCompanion),name:AppInstallation.revealNotification,object:nil)
+            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.checkDue(); self?.updateColour(); self?.updateSystemActivity(); if self?.pointerIsOverCompanion == true && self?.screenAsleep == false && self?.sessionInactive == false { self?.spotify.refresh() } }
             NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
             let workspace=NSWorkspace.shared.notificationCenter
             for name in [NSWorkspace.screensDidSleepNotification,NSWorkspace.screensDidWakeNotification,NSWorkspace.sessionDidResignActiveNotification,NSWorkspace.sessionDidBecomeActiveNotification] {
@@ -67,13 +102,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
                 })
             }
             observers.append(workspace.addObserver(forName:NSWorkspace.didActivateApplicationNotification,object:nil,queue:.main) { [weak self] _ in self?.nextColourSample = .distantPast;self?.colourInterval=5 })
-            for local in [true, false] {
-                if local {
-                    let token = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in self?.updateClickThrough(); return event }
-                    if let token = token { observers.append(token) }
-                } else if let token = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { [weak self] _ in self?.updateClickThrough() }) { observers.append(token) }
-            }
+            displayObserver=NotificationCenter.default.addObserver(forName:NSApplication.didChangeScreenParametersNotification,object:nil,queue:.main) { [weak self] _ in self?.recoverDisplayPosition() }
+            observers.append(workspace.addObserver(forName:NSWorkspace.activeSpaceDidChangeNotification,object:nil,queue:.main) { [weak self] _ in
+                guard let self=self else { return };self.nextColourSample = .distantPast
+                self.sendVisibility()
+            })
+            startMouseTracking()
         } catch { showError(error.localizedDescription); NSApp.terminate(nil) }
+    }
+    func startMouseTracking() {
+        guard mouseMonitors.isEmpty,trackingMenus.isEmpty else { return }
+        if let monitor=NSEvent.addLocalMonitorForEvents(matching:[.mouseMoved,.leftMouseDragged],handler:{ [weak self] event in self?.updateClickThrough();return event }) { mouseMonitors.append(monitor) }
+        if let monitor=NSEvent.addGlobalMonitorForEvents(matching:[.mouseMoved,.leftMouseDragged],handler:{ [weak self] _ in self?.updateClickThrough() }) { mouseMonitors.append(monitor) }
+    }
+    func stopMouseTracking() {
+        for monitor in mouseMonitors { NSEvent.removeMonitor(monitor) }
+        mouseMonitors.removeAll()
     }
     // Aggregate idle time only: no event tap, key contents or input permission.
     func systemIsActive() -> Bool {
@@ -88,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         ghostWeb.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-system-activity',{detail:\(active ? "true" : "false")}))",completionHandler:nil)
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if webView === ghostWeb { lastSentSystemActive=nil;updateSystemActivity();sendVisibility() }
+        if webView === ghostWeb { lastSentSystemActive=nil;updateSystemActivity();sendVisibility();sendSpotify() }
     }
     // Optional rendering overrides for performance experiments, e.g. `defaults write local.mnemo.companion debugIdleFPS -float 12`.
     func debugRendering() -> String {
@@ -105,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         (()=>{let next=0;const pending=new Map();window.mnemoNativeReply=reply=>{const p=pending.get(reply.id);if(!p)return;pending.delete(reply.id);reply.error?p.reject(new Error(reply.error)):p.resolve(reply.result)};
         const call=(method,payload={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.webkit.messageHandlers.mnemo.postMessage({id,method,payload})});
         const send=(method,payload={})=>window.webkit.messageHandlers.mnemo.postMessage({method,payload});
-        window.mnemoDesktop={mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions})};
+        window.mnemoDesktop={mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifySkip:()=>call('spotifySkip')};
         window.addEventListener('error',e=>send('scriptError',{message:e.message}));
         })();
         """
@@ -128,9 +172,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         origin=boundedOrigin(origin,size:NSSize(width:320,height:440))
         ghost = CompanionPanel(contentRect: NSRect(origin:origin,size:NSSize(width:320,height:440)), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         ghost.title = "Mnemo companion"; ghost.isOpaque = false; ghost.backgroundColor = .clear; ghost.hasShadow = false
-        ghost.level = .floating; ghost.hidesOnDeactivate = false; ghost.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        ghost.level = .floating; ghost.hidesOnDeactivate = false; ghost.collectionBehavior = CompanionPanel.companionBehavior
+        // Floating windows otherwise default to transient (hidden in Mission Control).
+        // Keep the companion stationary and out of normal window cycling.
         ghost.isReleasedWhenClosed = false; ghost.acceptsMouseMovedEvents = true
         ghostWeb = makeWeb(mode: "companion"); ghost.contentView = ghostWeb
+        recoverDisplayPosition()
         ghost.orderFrontRegardless()
     }
     @objc func showManager() {
@@ -142,6 +189,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         }
         NSApp.activate(ignoringOtherApps: true); manager?.makeKeyAndOrderFront(nil)
     }
+    var showInDock:Bool { UserDefaults.standard.object(forKey:"showInDock") as? Bool ?? true }
+    @objc func showSettings() {
+        if settingsController == nil {
+            settingsController=MnemoSettingsController(actions:.init(
+                dock:{ [weak self] value in self?.setShowInDock(value) },
+                login:{ [weak self] in self?.toggleLaunchAtLogin() },
+                size:{ [weak self] in self?.showSizes() },
+                colour:{ [weak self] value in
+                    let item=NSMenuItem();item.representedObject=value;self?.chooseColour(item)
+                },
+                loginSettings:{ [weak self] in self?.openLoginSettings() },
+                refresh:{ [weak self] in self?.refreshLoginItemState() },
+                spotify:{ [weak self] value in
+                    UserDefaults.standard.set(value,forKey:"spotifyOnHover");self?.spotify.setEnabled(value);self?.refreshSpotifySettings()
+                }
+            ))
+        }
+        refreshLoginItemState();refreshSettings()
+        NSApp.activate(ignoringOtherApps:true);settingsController?.showWindow(nil);settingsController?.window?.makeKeyAndOrderFront(nil)
+    }
+    func sendSpotify() {
+        guard let data=try? JSONSerialization.data(withJSONObject:spotifyState),let json=String(data:data,encoding:.utf8) else { return }
+        ghostWeb?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-spotify',{detail:\(json)}))",completionHandler:nil)
+    }
+    func refreshSpotifySettings() {
+        settingsController?.updateSpotify(enabled:UserDefaults.standard.bool(forKey:"spotifyOnHover"),status:spotifyStatus)
+    }
+    func refreshSettings() {
+        refreshSpotifySettings()
+        settingsController?.update(showDock:showInDock,login:loginState,busy:loginChangePending,message:loginMessage,error:loginError,installed:AppInstallation.isInstalled,colour:UserDefaults.standard.string(forKey:"ghostColour") ?? "white")
+    }
+    func setShowInDock(_ visible:Bool) {
+        let activeWindow=[settingsController?.window,manager,sizesWindow].compactMap({$0}).first(where:{$0.isKeyWindow})
+        let ghostWasVisible=ghost?.isVisible == true
+        guard NSApp.setActivationPolicy(visible ? .regular:.accessory) else { refreshSettings();return }
+        UserDefaults.standard.set(visible,forKey:"showInDock");refreshSettings()
+        DispatchQueue.main.async { [weak self,weak activeWindow] in
+            if ghostWasVisible { self?.ghost?.orderFrontRegardless() }
+            if let window=activeWindow { NSApp.activate(ignoringOtherApps:true);window.makeKeyAndOrderFront(nil) }
+        }
+    }
+    func applicationDockMenu(_ sender:NSApplication) -> NSMenu? {
+        let menu=NSMenu()
+        for (title,action) in [("My reminders…",#selector(showManager)),("Settings…",#selector(showSettings))] {
+            let item=NSMenuItem(title:title,action:action,keyEquivalent:"");item.target=self;menu.addItem(item)
+        }
+        observeMenu(menu)
+        return menu
+    }
     @objc func showSizes() {
         if sizesWindow == nil {
             let window=NSWindow(contentRect:NSRect(x:0,y:0,width:720,height:440),styleMask:[.titled,.closable,.miniaturizable],backing:.buffered,defer:false)
@@ -152,23 +248,110 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         NSApp.activate(ignoringOtherApps:true);sizesWindow?.makeKeyAndOrderFront(nil)
     }
     func createMenu() {
-        if let previous=statusItem { NSStatusBar.system.removeStatusItem(previous) }
+        // Keep the status item and menu objects stable for AppKit's tracking loop.
+        guard statusItem == nil else { refreshMenuState(); return }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image=mnemoMenuIcon();statusItem.button?.imagePosition = .imageOnly
         statusItem.button?.setAccessibilityLabel("Mnemo reminders");statusItem.button?.toolTip = "Mnemo · your reminder companion"
         let menu = NSMenu()
         menu.addItem(withTitle: "My reminders…", action: #selector(showManager), keyEquivalent: "r")
+        menu.addItem(withTitle:"Settings…",action:#selector(showSettings),keyEquivalent:",")
         menu.addItem(withTitle:"Size…",action:#selector(showSizes),keyEquivalent:"")
         let colourItem=NSMenuItem(title:"Colour",action:nil,keyEquivalent:"");colourItem.submenu=colourMenu();menu.addItem(colourItem)
         menu.addItem(withTitle: "Show / hide ghost", action: #selector(toggleGhost), keyEquivalent: "")
         menu.addItem(withTitle: "Pause / resume motion", action: #selector(toggleMotion), keyEquivalent: "")
         menu.addItem(.separator())
+        addLaunchAtLoginItems(to:menu)
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Mnemo", action: #selector(quit), keyEquivalent: "q")
         for item in menu.items { item.target = self }; statusItem.menu = menu
         let mainMenu=NSMenu(),applicationMenu=NSMenu(),applicationItem=NSMenuItem()
+        let settingsItem=NSMenuItem(title:"Settings…",action:#selector(showSettings),keyEquivalent:",");settingsItem.target=self;applicationMenu.addItem(settingsItem);applicationMenu.addItem(.separator())
         let quitItem=NSMenuItem(title:"Quit Mnemo",action:#selector(quit),keyEquivalent:"q");quitItem.target=self
-        let sizeItem=NSMenuItem(title:"Size…",action:#selector(showSizes),keyEquivalent:"");sizeItem.target=self;applicationMenu.addItem(sizeItem);let colourMain=NSMenuItem(title:"Colour",action:nil,keyEquivalent:"");colourMain.submenu=colourMenu();applicationMenu.addItem(colourMain);applicationMenu.addItem(.separator());applicationMenu.addItem(quitItem);applicationItem.submenu=applicationMenu;mainMenu.addItem(applicationItem);NSApp.mainMenu=mainMenu
+        let sizeItem=NSMenuItem(title:"Size…",action:#selector(showSizes),keyEquivalent:"");sizeItem.target=self;applicationMenu.addItem(sizeItem);let colourMain=NSMenuItem(title:"Colour",action:nil,keyEquivalent:"");colourMain.submenu=colourMenu();applicationMenu.addItem(colourMain);applicationMenu.addItem(.separator());addLaunchAtLoginItems(to:applicationMenu);applicationMenu.addItem(.separator());applicationMenu.addItem(quitItem);applicationItem.submenu=applicationMenu;mainMenu.addItem(applicationItem);NSApp.mainMenu=mainMenu
+        observeMenu(menu);observeMenu(applicationMenu);refreshLoginItemState()
     }
+    func observeMenu(_ menu:NSMenu) {
+        menu.delegate=self
+        for item in menu.items { if let submenu=item.submenu { observeMenu(submenu) } }
+    }
+    func menuNeedsUpdate(_ menu:NSMenu) { if trackingMenus.isEmpty { refreshMenuState();refreshLoginItemState() } }
+    func menuWillOpen(_ menu:NSMenu) {
+        let wasTracking = !trackingMenus.isEmpty
+        trackingMenus.insert(ObjectIdentifier(menu))
+        if !wasTracking { stopMouseTracking();sendVisibility() }
+    }
+    func menuDidClose(_ menu:NSMenu) {
+        trackingMenus.remove(ObjectIdentifier(menu))
+        if trackingMenus.isEmpty {
+            refreshMenuState();updateLoginItemMenus();sendVisibility()
+            // Reinstall only after AppKit finishes dismissing the menu.
+            DispatchQueue.main.async { [weak self] in
+                guard let self=self,self.trackingMenus.isEmpty else { return }
+                self.startMouseTracking();self.updateClickThrough()
+            }
+        }
+    }
+    func refreshMenuState() {
+        let mode=UserDefaults.standard.string(forKey:"ghostColour") ?? "white"
+        for parent in (statusItem?.menu?.items ?? []) + (NSApp.mainMenu?.items.first?.submenu?.items ?? []) {
+            guard let submenu=parent.submenu else { continue }
+            for item in submenu.items {
+                if let value=item.representedObject as? String {
+                    let state:NSControl.StateValue=value == mode ? .on : .off
+                    if item.state != state { item.state=state }
+                }
+            }
+            if let status=submenu.item(withTag:917),status.title != backgroundColour.status { status.title=backgroundColour.status }
+        }
+    }
+    func addLaunchAtLoginItems(to menu:NSMenu) {
+        let item=NSMenuItem(title:"Launch at Login",action:#selector(toggleLaunchAtLogin),keyEquivalent:"")
+        item.tag=918;item.target=self;menu.addItem(item)
+        let message=NSMenuItem(title:"",action:nil,keyEquivalent:"");message.tag=919;message.isHidden=true;menu.addItem(message)
+        let settings=NSMenuItem(title:"Open Login Settings…",action:#selector(openLoginSettings),keyEquivalent:"")
+        settings.tag=920;settings.target=self;settings.isHidden=true;menu.addItem(settings)
+    }
+    func refreshLoginItemState() {
+        if !loginChangePending { loginState=loginItem.state }
+        updateLoginItemMenus()
+    }
+    func updateLoginItemMenus() {
+        refreshSettings()
+        guard trackingMenus.isEmpty else { return }
+        for menu in [statusItem?.menu,NSApp.mainMenu?.items.first?.submenu].compactMap({$0}) {
+            guard let item=menu.item(withTag:918) else { continue }
+            let title=loginChangePending ? "Updating Launch at Login…":"Launch at Login"
+            if item.title != title { item.title=title }
+            let state:NSControl.StateValue=loginState == .enabled ? .on:loginState == .requiresApproval ? .mixed:.off
+            if item.state != state { item.state=state }
+            item.toolTip=AppInstallation.isInstalled ? nil:"Install Mnemo in Applications to enable launch at login."
+            item.isEnabled=AppInstallation.isInstalled && !loginChangePending
+            let message=loginMessage ?? (loginState == .requiresApproval ? "Approval needed in Login Items":nil)
+            if let row=menu.item(withTag:919) { row.title=message ?? "";row.toolTip=loginError;row.isHidden=message == nil }
+            menu.item(withTag:920)?.isHidden=message == nil
+        }
+    }
+    func validateMenuItem(_ item:NSMenuItem) -> Bool {
+        if item.tag == 918 { return AppInstallation.isInstalled && !loginChangePending }
+        return true
+    }
+    @objc func openLoginSettings() { SMAppService.openSystemSettingsLoginItems() }
+    @objc func toggleLaunchAtLogin() {
+        guard AppInstallation.isInstalled,!loginChangePending else { return }
+        loginChangePending=true;loginMessage=nil;loginError=nil;updateLoginItemMenus()
+        // The action may still be inside AppKit's post-tracking dismissal stack.
+        // Neither registration nor a modal dialog may hold that stack open.
+        loginItem.toggleAsync { [weak self] state,error in
+            guard let self=self else { return }
+            self.loginChangePending=false;self.loginState=state
+            NSLog("Mnemo Launch at Login: %@",error?.localizedDescription ?? String(describing:state))
+            if let error=error { self.loginMessage="Couldn’t change Launch at Login";self.loginError=error.localizedDescription }
+            else if state == .notFound || state == .unavailable { self.loginMessage="macOS hasn’t confirmed login startup" }
+            self.updateLoginItemMenus()
+        }
+    }
+    @objc func revealCompanion() { guard startupReady else { return };ghost.orderFrontRegardless();sendVisibility() }
     func colourMenu() -> NSMenu {
         let menu=NSMenu()
         for (title,mode) in [("Auto","auto"),("White","white"),("Lavender","lavender")] {
@@ -192,16 +375,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             }
         }
         UserDefaults.standard.set(mode,forKey:"ghostColour")
-        createMenu();colourTicks=0;nextColourSample = .distantPast;colourInterval=5;updateColour()
+        refreshMenuState();refreshSettings();colourTicks=0;nextColourSample = .distantPast;colourInterval=5;updateColour()
     }
     func sendColour(_ dark:Bool) {
         guard lastSentColour != dark else { return };lastSentColour=dark
         ghostWeb?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-colour',{detail:\(dark ? "true" : "false")}))",completionHandler:nil)
     }
     func updateColour() {
-        for parent in (statusItem?.menu?.items ?? []) + (NSApp.mainMenu?.items.first?.submenu?.items ?? []) {
-            parent.submenu?.item(withTag:917)?.title=backgroundColour.status
-        }
+        if trackingMenus.isEmpty { refreshMenuState() }
         let mode=UserDefaults.standard.string(forKey:"ghostColour") ?? "white"
         if mode != "auto" { sendColour(mode == "lavender");return }
         guard !screenAsleep,!sessionInactive,ghost.isVisible,let body=hitRegions.first else { return }
@@ -217,12 +398,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             self.sendColour(dark)
         }
     }
-    func sendVisibility() { let visible=ghost.isVisible && !screenAsleep && !sessionInactive;ghostWeb.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-visible',{detail:\(visible ? "true" : "false")}))",completionHandler:nil) }
+    func sendVisibility() { guard ghost != nil else { return };let visible=ghost.isVisible && !screenAsleep && !sessionInactive && trackingMenus.isEmpty;ghostWeb.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-visible',{detail:\(visible ? "true" : "false")}))",completionHandler:nil) }
     @objc func toggleGhost() { if ghost.isVisible { ghost.orderOut(nil) } else { ghost.orderFrontRegardless() };sendVisibility() }
     @objc func toggleMotion() { ghostWeb.evaluateJavaScript("window.dispatchEvent(new Event('mnemo-pause'))", completionHandler: nil) }
     @objc func quit() { NSApp.terminate(nil) }
     @objc func woke() { checkDue() }
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showManager();return true }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { if startupReady { showManager() };return true }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func reply(web: WKWebView?, id: Any?, result: Any? = nil, error: String? = nil) {
         guard let web = web, let id = id else { return }
@@ -234,6 +415,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         let id = body["id"], payload = body["payload"] as? [String: Any] ?? [:]
         do {
             switch method {
+            case "spotifySkip":
+                guard mode == "companion",spotify.enabled else { throw ReminderError.invalid("Enable Spotify on Hover in Settings.") }
+                spotify.skip { [weak self,weak web] error in self?.reply(web:web,id:id,result:error == nil ? true:nil,error:error) }
             case "list": reply(web: web, id: id, result: try JSONSerialization.jsonObject(with: Data(store.json().utf8)))
             case "save":
                 guard let text = payload["text"] as? String, let dueAt = payload["dueAt"] as? Double else { throw ReminderError.invalid("A reminder needs text and a valid time.") }
@@ -254,9 +438,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             case "moveBy":
                 guard mode == "companion", let dx = payload["dx"] as? Double, let dy = payload["dy"] as? Double, dx.isFinite, dy.isFinite, abs(dx) < 500, abs(dy) < 500 else { return }
                 let origin=ghost.frame.origin
-                ghost.setFrameOrigin(boundedOrigin(NSPoint(x:origin.x+dx,y:origin.y-dy),size:ghost.frame.size))
+                ghost.setFrameOrigin(boundedOrigin(NSPoint(x:origin.x+dx,y:origin.y-dy),size:ghost.frame.size,dragging:true))
                 if payload["remember"] as? Bool == true {
-                    UserDefaults.standard.set(["x":ghost.frame.origin.x,"y":ghost.frame.origin.y],forKey:"ghostRestingPosition")
+                    rememberDisplayPosition()
                 }
             case "hitRegions":
                 guard mode == "companion", let regions = payload["regions"] as? [[String: Double]] else { return }
@@ -266,26 +450,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             }
         } catch { reply(web: web, id: id, error: error.localizedDescription) }
     }
-    func boundedOrigin(_ origin:NSPoint,size:NSSize) -> NSPoint {
-        // Hit regions use top-left web coordinates; AppKit uses bottom-left coordinates.
-        // Only the ghost determines movement limits, never its transparent canvas or bubble.
+    func displayID(_ screen:NSScreen) -> String {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.stringValue ?? "unknown"
+    }
+    func bodyRect(origin:NSPoint,size:NSSize) -> CGRect {
         let body=hitRegions.first ?? CGRect(x:96,y:220,width:128,height:150)
-        let left=body.minX, right=body.maxX
-        let bottom=size.height-body.maxY, top=size.height-body.minY
-        let center=NSPoint(x:origin.x+body.midX,y:origin.y+size.height-body.midY)
-        let screen=NSScreen.screens.first(where:{$0.frame.contains(center)}) ?? ghost?.screen ?? NSScreen.main
-        guard let area=screen?.visibleFrame else { return origin }
-        return NSPoint(x:min(max(origin.x,area.minX-left),area.maxX-right),
-                       y:min(max(origin.y,area.minY-bottom),area.maxY-top))
+        return CGRect(x:origin.x+body.minX,y:origin.y+size.height-body.maxY,width:body.width,height:body.height)
+    }
+    static func nearestArea(to point:NSPoint,areas:[CGRect]) -> CGRect? {
+        areas.min { a,b in
+            func distance(_ r:CGRect) -> Double {
+                let dx=max(r.minX-point.x,0,point.x-r.maxX),dy=max(r.minY-point.y,0,point.y-r.maxY)
+                return dx*dx+dy*dy
+            }
+            return distance(a)<distance(b)
+        }
+    }
+    func boundedOrigin(_ origin:NSPoint,size:NSSize,dragging:Bool=false) -> NSPoint {
+        let body=bodyRect(origin:origin,size:size)
+        let pointerArea=dragging ? NSScreen.screens.first(where:{$0.frame.contains(NSEvent.mouseLocation)})?.visibleFrame : nil
+        guard let area=pointerArea ?? Self.nearestArea(to:NSPoint(x:body.midX,y:body.midY),areas:NSScreen.screens.map(\.visibleFrame)) else { return origin }
+        return NSPoint(x:origin.x+min(max(body.minX,area.minX),max(area.minX,area.maxX-body.width))-body.minX,
+                       y:origin.y+min(max(body.minY,area.minY),max(area.minY,area.maxY-body.height))-body.minY)
+    }
+    func rememberDisplayPosition() {
+        let body=bodyRect(origin:ghost.frame.origin,size:ghost.frame.size)
+        guard let screen=NSScreen.screens.first(where:{$0.frame.contains(NSPoint(x:body.midX,y:body.midY))}) else { return }
+        let area=screen.visibleFrame,id=displayID(screen)
+        var positions=UserDefaults.standard.dictionary(forKey:"ghostDisplayPositions") ?? [:]
+        positions[id]=["x":(body.minX-area.minX)/max(1,area.width-body.width),"y":(body.minY-area.minY)/max(1,area.height-body.height)]
+        UserDefaults.standard.set(positions,forKey:"ghostDisplayPositions")
+        UserDefaults.standard.set(id,forKey:"ghostPreferredDisplay")
+        UserDefaults.standard.set(["x":ghost.frame.minX,"y":ghost.frame.minY],forKey:"ghostRestingPosition")
+    }
+    func recoverDisplayPosition() {
+        guard ghost != nil else { return }
+        let defaults=UserDefaults.standard
+        var origin=ghost.frame.origin
+        if let preferred=defaults.string(forKey:"ghostPreferredDisplay"),
+           let screen=NSScreen.screens.first(where:{displayID($0)==preferred}),
+           let positions=defaults.dictionary(forKey:"ghostDisplayPositions"),let saved=positions[preferred] as? [String:Double],
+           let x=saved["x"],let y=saved["y"],x.isFinite,y.isFinite {
+            let body=bodyRect(origin:.zero,size:ghost.frame.size),area=screen.visibleFrame
+            origin=NSPoint(x:area.minX+min(1,max(0,x))*max(0,area.width-body.width)-body.minX,
+                           y:area.minY+min(1,max(0,y))*max(0,area.height-body.height)-body.minY)
+        }
+        ghost.setFrameOrigin(boundedOrigin(origin,size:ghost.frame.size))
+        nextColourSample = .distantPast;updateClickThrough()
     }
 
     func updateClickThrough() {
-        guard ghost != nil, !hitRegions.isEmpty else { return }
+        guard ghost != nil, !hitRegions.isEmpty, trackingMenus.isEmpty else { return }
         let mouse = NSEvent.mouseLocation, point = CGPoint(x: mouse.x-ghost.frame.minX, y: ghost.frame.maxY-mouse.y)
         let interactive=hitRegions.contains(where: { $0.contains(point) })
-        ghost.ignoresMouseEvents = !interactive
+        if ghost.ignoresMouseEvents == interactive { ghost.ignoresMouseEvents = !interactive }
         if pointerIsOverCompanion != interactive {
             pointerIsOverCompanion=interactive
+            if interactive { spotify.refresh(force:true) }
             ghostWeb.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-hover',{detail:\(interactive ? "true" : "false")}))",completionHandler:nil)
         }
     }
@@ -297,7 +518,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     }
     func checkDue() {
         guard !screenAsleep,!sessionInactive else { return }
-        do { if !(try store.checkDue()).isEmpty { ghost.orderFrontRegardless();ghostWeb.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-visible',{detail:true}))",completionHandler:nil); broadcast() } }
+        do { if !(try store.checkDue()).isEmpty { ghost.orderFrontRegardless();sendVisibility(); broadcast() } }
         catch { print("Reminder scheduler: \(error.localizedDescription)") }
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -308,6 +529,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
 let app=NSApplication.shared
 let delegate=AppDelegate()
-app.setActivationPolicy(.regular)
+app.setActivationPolicy(delegate.showInDock ? .regular:.accessory)
 app.delegate=delegate
 app.run()

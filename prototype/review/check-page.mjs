@@ -17,6 +17,7 @@ source=source.slice(0,uiStart)+`function startReminders(options){
 source=source.replace('const pet=document.querySelector',`THREE.WebGLRenderer=class{capabilities={maxSamples:4};getDrawingBufferSize(v){return v.set(640,640)}setRenderTarget(){}setPixelRatio(){}setSize(){}setClearColor(){}render(){globalThis.renderCount++}};
 THREE.PMREMGenerator=class{fromScene(){return {texture:new THREE.Texture()}}dispose(){}};
 const pet=document.querySelector`);
+source=source.replace(/function createSpotifyCaption\([\s\S]*?(?=function startReminders)/,`function createSpotifyCaption(){return {element:{},interactive:false,sync(){},updateHover(){},position(){}}}\n`);
 source+='\nglobalThis.page={frame,model,companion,peekaboo,spin,toggleMotion,get time(){return time},get spinStart(){return spinStart},get wander(){return wander},get mood(){return mood},get stillness(){return stillness}};';
 function setup(native=false,activityAware=false){
  let now=0;
