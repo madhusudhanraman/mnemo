@@ -10,11 +10,11 @@ Idle energy and the settle/stir behaviour: see `docs/performance.md` for status,
 
 ## Publishing changes
 
-As part of finishing any development change, commit and push it to the current feature branch, then confirm the branch and commit are on GitHub. Do not leave completed work only on one Mac. Main and PR rules above still apply.
+Do not push automatically after individual changes or at the end of a task. Push only when the user explicitly asks, normally at the end of a work session. Keep changes on the current feature branch unless the user asks to separate the work. Main and PR rules above still apply.
 
 ## Machine handoff
 
-When the user says they are switching to the other machine (leaving this one):
+When the user asks to push or hand off to the other machine (leaving this one):
 
 1. `git status`. If there are changes on `main`, move them to a new feature branch first.
 2. Commit everything not ignored, as `WIP: handoff from <short hostname>` if the work is unfinished.
