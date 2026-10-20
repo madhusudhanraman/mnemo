@@ -1,6 +1,6 @@
 # Mnemo for macOS
 
-A floating ghost that remembers things for you. Click Mnemo—or his Dock icon—to open reminders. Drag him to move; Shift-drag turns him. He drifts, pirouettes and plays Peekaboo on his own. After a quiet spell his eyes droop and movement slows; approaching him wakes him and may prompt a curious tilt. Completing a reminder triggers a gentle spiral flutter through his sheet.
+A floating ghost that remembers things for you. Click Mnemo—or his Dock icon—to open reminders. Drag him to move; Shift-drag turns him. He drifts, pirouettes and plays Peekaboo on his own. After a minute without mouse or keyboard activity anywhere on the Mac, his eyes droop and movement slows; using the Mac wakes him, and approaching him may prompt a curious tilt. Completing a reminder triggers a gentle spiral flutter through his sheet.
 
 ## Reminders
 

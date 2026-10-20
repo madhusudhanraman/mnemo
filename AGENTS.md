@@ -8,6 +8,10 @@ Mnemo is developed on two Macs (personal and work), coordinated through GitHub. 
 
 Idle energy and the settle/stir behaviour: see `docs/performance.md` for status, measurements and open questions. Read it before continuing that work.
 
+## Publishing changes
+
+As part of finishing any development change, commit and push it to the current feature branch, then confirm the branch and commit are on GitHub. Do not leave completed work only on one Mac. Main and PR rules above still apply.
+
 ## Machine handoff
 
 When the user says they are switching to the other machine (leaving this one):

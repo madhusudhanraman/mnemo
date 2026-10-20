@@ -51,12 +51,15 @@ let queueGlowOnly=false,queueFlutterAllowed=false;
 let announcementReveal=null,announcementBaseYaw=0;
 /* COMPANION_BEHAVIOURS */
 const behaviours=createBehaviours();let mood={sleep:0,eyeOpen:1,speed:1,curious:0,flutter:0,bob:0,tilt:0,phase:0},clothTime=0,lastBehaviourTime=0,lastInteraction=0,lastEyeOpen=1;
+let systemActive=Boolean(desktop?.systemActive);
+// Native activity is based on real wall-clock input idle time, even while scene time is frozen.
+function userIsInactive(){return typeof desktop?.systemActive==='boolean'?!systemActive:time-lastInteraction>60}
 let backgroundIsLight=false;
 const colourTarget=new THREE.Color(0xffffff);
 window.addEventListener('mnemo-colour',event=>{backgroundIsLight=Boolean(event.detail);companion.setEyeContrast(backgroundIsLight,paused);colourTarget.set(backgroundIsLight?0x59416f:0xffffff);if(paused)companion.sheet.material.color.copy(colourTarget);invalidateRender()});
 function draw(t){
  const moodDt=Math.max(0,Math.min(.1,t-lastBehaviourTime));lastBehaviourTime=t;
- if(t-lastInteraction>60&&!activeThoughtPersistent)behaviours.sleep();
+ if(!userIsInactive())behaviours.wake();else if(!activeThoughtPersistent&&!hovering&&!dragging)behaviours.sleep();
  mood=behaviours.step(moodDt,{busy:(activeThoughtPersistent&&!queueFlutterAllowed)||dragging,reduced});
  clothTime+=moodDt*mood.speed;
 
@@ -163,7 +166,7 @@ function scheduleFrame(){if(!renderVisible||paused||settled())return;clearTimeou
 function frameInterval(){const active=dragging||time-announcementStart<3.5||mood.flutter>.001;return active?1000/30:mood.sleep>.85&&!(performance.now()<stirEnd)?1000/(desktop?.debug?.sleepyFPS??10):1000/(desktop?.debug?.idleFPS??20)}
 function updateRenderVisibility(){const wasVisible=renderVisible;renderVisible=nativeVisible&&!document.hidden;if(!renderVisible){clearTimeout(renderTimer);return}if(!wasVisible){last=performance.now();lastRender=-Infinity;invalidateRender()}}
 function frame(now){if(desktop?.mode==='manager'||!renderVisible)return;if(paused&&!needsRender)return;const interval=frameInterval();if(!needsRender&&now-lastRender<interval-.5){scheduleFrame();return}lastRender=now;needsRender=false;const dt=Math.min((now-last)/1000,.1);last=now;
-const restful=desktop&&!paused&&!dragging&&!hovering&&!activeThoughtPersistent&&time-lastInteraction>60&&mood.sleep>.97&&time-announcementStart>=3.5&&mood.flutter<=.001&&time-spinStart>=3.8&&peekabooReturn===Infinity;
+const restful=desktop&&!paused&&!dragging&&!hovering&&!activeThoughtPersistent&&userIsInactive()&&mood.sleep>.97&&time-announcementStart>=3.5&&mood.flutter<=.001&&time-spinStart>=3.8&&peekabooReturn===Infinity;
 const stirring=restful&&now<stirEnd,afterStir=stirEnd>0&&!stirring;
 if(!restful)stillness-=dt/.6;else if(stirring)stillness=Math.max(0,stillness-dt/.7);else stillness+=dt/(afterStir?2:4);
 stillness=Math.max(0,Math.min(1,stillness));
