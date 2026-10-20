@@ -17,18 +17,19 @@ source=source.slice(0,uiStart)+`function startReminders(options){
 source=source.replace('const pet=document.querySelector',`THREE.WebGLRenderer=class{capabilities={maxSamples:4};getDrawingBufferSize(v){return v.set(640,640)}setRenderTarget(){}setPixelRatio(){}setSize(){}setClearColor(){}render(){globalThis.renderCount++}};
 THREE.PMREMGenerator=class{fromScene(){return {texture:new THREE.Texture()}}dispose(){}};
 const pet=document.querySelector`);
-source+='\nglobalThis.page={frame,model,companion,peekaboo,spin,toggleMotion,get time(){return time},get spinStart(){return spinStart},get wander(){return wander}};';
-function setup(native=false){
- const elements=new Map(),moves=[],handlers=new Map();
- const el=id=>{if(!elements.has(id)){const classes=new Set();elements.set(id,{offsetWidth:native?240:460,offsetHeight:native?240:460,getBoundingClientRect(){return native?{left:40,top:160,width:240,height:240}:{left:300,top:200,width:460,height:460}},style:{},setAttribute(){},setPointerCapture(){},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x)}})}return elements.get(id)};
- const desktop=native?{mode:'companion',moveBy:delta=>moves.push(delta),hitRegions(){}}:undefined;
- globalThis.renderCount=0;globalThis.openCount=0;
- const names=['document','window','innerWidth','innerHeight','devicePixelRatio','matchMedia','addEventListener','requestAnimationFrame','setTimeout','clearTimeout'];
- const values=[{querySelector:el,getElementById:id=>el('#'+id)},{mnemoDesktop:desktop,addEventListener:(name,handler)=>handlers.set(name,handler)},native?320:1400,native?440:900,1,()=>({matches:false}),()=>{},()=>{},()=>1,()=>{}];
- new Function(...names,source)(...values);
+source+='\nglobalThis.page={frame,model,companion,peekaboo,spin,toggleMotion,get time(){return time},get spinStart(){return spinStart},get wander(){return wander},get mood(){return mood},get stillness(){return stillness}};';
+function setup(native=false,activityAware=false){
  let now=0;
+ const elements=new Map(),moves=[],handlers=new Map();
+ const el=id=>{if(!elements.has(id)){const classes=new Set();elements.set(id,{offsetWidth:native?240:460,offsetHeight:native?240:460,getBoundingClientRect(){return native?{left:40,top:160,width:240,height:240}:{left:300,top:200,width:460,height:460}},animate(){return {cancel(){}}},style:{},setAttribute(){},setPointerCapture(){},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x)}})}return elements.get(id)};
+ const desktop=native?{mode:'companion',moveBy:delta=>moves.push(delta),hitRegions(){}}:undefined;
+ if(activityAware)desktop.systemActive=true;
+ globalThis.renderCount=0;globalThis.openCount=0;
+ const names=['document','window','innerWidth','innerHeight','devicePixelRatio','matchMedia','addEventListener','requestAnimationFrame','setTimeout','clearTimeout','performance','getComputedStyle'];
+ const values=[{querySelector:el,getElementById:id=>el('#'+id)},{mnemoDesktop:desktop,addEventListener:(name,handler)=>handlers.set(name,handler)},native?320:1400,native?440:900,1,()=>({matches:false}),()=>{},()=>{},()=>1,()=>{},{now:()=>now},()=>({transform:'none'})];
+ new Function(...names,source)(...values);
  const advance=n=>{for(let i=0;i<n;i++){now+=34;globalThis.page.frame(now)}};
- return {el,moves,advance,page:globalThis.page,setHover:value=>handlers.get('mnemo-hover')?.({detail:value}),setVisible:value=>handlers.get('mnemo-visible')?.({detail:value})};
+ return {el,moves,advance,page:globalThis.page,setHover:value=>handlers.get('mnemo-hover')?.({detail:value}),setVisible:value=>handlers.get('mnemo-visible')?.({detail:value}),setActive:value=>handlers.get('mnemo-system-activity')?.({detail:value})};
 }
 const browser=setup();browser.advance(12);
 assert.ok(globalThis.renderCount>0&&globalThis.renderCount<24,'Idle frame cap and opaque pass skipping reduce renders');
@@ -66,3 +67,19 @@ const beforeHidden=globalThis.renderCount;native.setVisible(false);native.advanc
 native.setVisible(true);native.advance(3);assert.ok(globalThis.renderCount>beforeHidden,'Visible companion resumes');
 native.page.toggleMotion();native.advance(3);const pausedRenders=globalThis.renderCount;native.advance(120);assert.equal(globalThis.renderCount,pausedRenders,'Paused unchanged companion draws no repeated frames');
 console.log('PASS: click/keyboard opens reminders; drag does not; smaller native ghost; no behaviour toolbar; bounded smooth diagonal wandering; hover hold; new resting spot after drag; thought anchor; pause; spin; coordinated Peekaboo; hidden and paused rendering stops.');
+
+const activity=setup(true,true);
+activity.advance(2400);
+assert.ok(activity.page.time>60,'Exercise sustained laptop activity beyond old sleepy threshold');
+assert.equal(activity.page.mood.sleep,0,'General laptop activity keeps Mnemo awake without hovering');
+activity.setActive(false);activity.advance(500);
+assert.equal(activity.page.stillness,1,'System inactivity permits full settling');
+assert.ok(activity.page.mood.sleep>.97,'System inactivity makes him sleepy');
+activity.setActive(true);activity.advance(80);
+assert.equal(activity.page.stillness,0,'Activity elsewhere wakes a fully settled companion');
+assert.ok(activity.page.mood.sleep<.1,'Wake restores open eyes smoothly');
+activity.page.toggleMotion();activity.advance(3);
+const pausedTime=activity.page.time;
+activity.setActive(false);activity.setActive(true);activity.advance(30);
+assert.equal(activity.page.time,pausedTime,'System activity respects manual Pause');
+console.log('PASS: system-wide activity prevents sleep, inactivity settles, renewed activity wakes, and Pause remains in control.');

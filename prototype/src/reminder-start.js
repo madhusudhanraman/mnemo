@@ -31,6 +31,7 @@ function reportHitRegions(now){
  desktop.hitRegions(rounded);
 }
 function wakeCompanion(){lastInteraction=time;behaviours.wake();invalidateRender()}
+window.addEventListener('mnemo-system-activity',event=>{systemActive=Boolean(event.detail);if(systemActive)wakeCompanion();else invalidateRender()});
 function celebrateDone(){wakeCompanion();behaviours.flutter()}
 const reminderUI=startReminders({showThought,hideThought,onDone:celebrateDone,onDesktopMode(mode){
  position={x:(innerWidth-pet.offsetWidth)/2,y:160};target={...position};

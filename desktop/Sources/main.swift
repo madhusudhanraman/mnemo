@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     var observers: [Any] = []
     var hitRegions: [CGRect] = []
     var pointerIsOverCompanion: Bool?
+    var lastSentSystemActive: Bool?
     let testMode = CommandLine.arguments.contains("--test")
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -52,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
             UNUserNotificationCenter.current().removeAllDeliveredNotifications()
             createMenu(); createGhost(); checkDue()
-            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.checkDue(); self?.updateColour() }
+            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.checkDue(); self?.updateColour(); self?.updateSystemActivity() }
             NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
             let workspace=NSWorkspace.shared.notificationCenter
             for name in [NSWorkspace.screensDidSleepNotification,NSWorkspace.screensDidWakeNotification,NSWorkspace.sessionDidResignActiveNotification,NSWorkspace.sessionDidBecomeActiveNotification] {
@@ -74,13 +75,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             }
         } catch { showError(error.localizedDescription); NSApp.terminate(nil) }
     }
+    // Aggregate idle time only: no event tap, key contents or input permission.
+    func systemIsActive() -> Bool {
+        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: UInt32.max)!)
+        return idle.isFinite && idle >= 0 && idle < 60
+    }
+    func updateSystemActivity() {
+        guard ghost.isVisible && !screenAsleep && !sessionInactive else { lastSentSystemActive=nil; return }
+        let active=systemIsActive()
+        guard lastSentSystemActive != active else { return }
+        lastSentSystemActive=active
+        ghostWeb.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-system-activity',{detail:\(active ? "true" : "false")}))",completionHandler:nil)
+    }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if webView === ghostWeb { lastSentSystemActive=nil;updateSystemActivity();sendVisibility() }
+    }
+    // Optional rendering overrides for performance experiments, e.g. `defaults write local.mnemo.companion debugIdleFPS -float 12`.
+    func debugRendering() -> String {
+        var values: [String: Double] = [:]
+        for (key, name, range) in [("debugIdleFPS", "idleFPS", 1.0...60), ("debugSleepyFPS", "sleepyFPS", 1.0...60), ("debugPixelRatio", "pixelRatio", 0.5...2)] {
+            if let value = UserDefaults.standard.object(forKey: key) as? Double, range.contains(value) { values[name] = value }
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: values), let json = String(data: data, encoding: .utf8) else { return "{}" }
+        return json
+    }
     func makeWeb(mode: String, resource: String = "ghost") -> WKWebView {
         let controller = WKUserContentController(); controller.add(Bridge(owner: self, mode: mode), name: "mnemo")
         let script = """
         (()=>{let next=0;const pending=new Map();window.mnemoNativeReply=reply=>{const p=pending.get(reply.id);if(!p)return;pending.delete(reply.id);reply.error?p.reject(new Error(reply.error)):p.resolve(reply.result)};
         const call=(method,payload={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.webkit.messageHandlers.mnemo.postMessage({id,method,payload})});
         const send=(method,payload={})=>window.webkit.messageHandlers.mnemo.postMessage({method,payload});
-        window.mnemoDesktop={mode:'\(mode)',preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions})};
+        window.mnemoDesktop={mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions})};
         window.addEventListener('error',e=>send('scriptError',{message:e.message}));
         })();
         """
