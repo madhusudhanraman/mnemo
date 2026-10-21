@@ -487,6 +487,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         guard ghost != nil else { return }
         let defaults=UserDefaults.standard
         var origin=ghost.frame.origin
+        // Dock, menu bar and full-screen changes resize the visible area of the current display; only keep him on screen then.
+        let body=bodyRect(origin:origin,size:ghost.frame.size)
+        let current=NSScreen.screens.first(where:{$0.frame.contains(NSPoint(x:body.midX,y:body.midY))})
+        if let current=current,displayID(current)==defaults.string(forKey:"ghostPreferredDisplay") {
+            let bounded=boundedOrigin(origin,size:ghost.frame.size)
+            if bounded != origin { ghost.setFrameOrigin(bounded) }
+            nextColourSample = .distantPast;updateClickThrough();return
+        }
         if let preferred=defaults.string(forKey:"ghostPreferredDisplay"),
            let screen=NSScreen.screens.first(where:{displayID($0)==preferred}),
            let positions=defaults.dictionary(forKey:"ghostDisplayPositions"),let saved=positions[preferred] as? [String:Double],

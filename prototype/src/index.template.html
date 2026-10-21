@@ -149,7 +149,7 @@ pet.onclick=e=>{if(!suppressClick&&!e.shiftKey)reminderUI.open();suppressClick=f
 pet.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();reminderUI.open()}};
 addEventListener('resize',bounds);
 // Once fully sleepy, motion slows to a halt and rendering stops until something wakes him.
-let stillness=0;
+let stillness=0,stirGain=1;
 function colourSettled(){const c=companion.sheet.material.color;return Math.abs(c.r-colourTarget.r)+Math.abs(c.g-colourTarget.g)+Math.abs(c.b-colourTarget.b)<.003}
 function settled(){return stillness>=1&&colourSettled()}
 // While settled he keeps breathing; the compositor runs this without redrawing the scene.
@@ -175,9 +175,12 @@ if(!restful)stillness-=dt/.6;else if(stirring)stillness=Math.max(0,stillness-dt/
 stillness=Math.max(0,Math.min(1,stillness));
 if(!restful)stopDoze();
 // A stir runs the sleepy cloth at about awake speed; the gain only changes while he is still.
-if(!paused)time+=dt*(1-stillness*stillness*(3-2*stillness))*(stirEnd>0?2.4:1);
+// The stir gain eases rather than switching, so waking mid-stir doesn't jerk.
+stirGain+=((stirEnd>0?2.4:1)-stirGain)*(1-Math.exp(-dt*4));
+const pace=(1-stillness*stillness*(3-2*stillness))*stirGain;
+if(!paused)time+=dt*pace;
 if(!paused&&!dragging&&!hovering){const k=1-Math.exp(-dt*1.1);position.x+=(target.x-position.x)*k;position.y+=(target.y-position.y)*k;if(Math.hypot(target.x-position.x,target.y-position.y)<3)swimming=false;if(mood.sleep<.2&&!activeThoughtPersistent&&time>nextAdventure&&peekabooReturn===Infinity&&companion.visibility>.9999&&time-spinStart>=3.8){if(desktop){const choice=Math.random();if(choice<.35)spin();else if(choice<.65)behaviours.curious()}else{Math.random()<.35?spin():swim()}nextAdventure=time+90+Math.random()*90}}
-if(desktop&&!paused&&!dragging&&!hovering&&!activeThoughtPersistent){idleClock+=dt*mood.speed;wander=idleOffset(idleClock)}
+if(desktop&&!paused&&!dragging&&!hovering&&!activeThoughtPersistent){idleClock+=dt*mood.speed*pace;wander=idleOffset(idleClock)}
 const t=time;draw(t);pet.style.transform=`translate(${position.x+(desktop?wander.x:0)}px,${position.y+(desktop?wander.y:(dragging?0:Math.sin(t*1.15)*7))}px)`;positionBubble();reportHitRegions(now);scheduleFrame();if(settled()){startDoze();if(!stirTimer)scheduleStir()}}
 window.addEventListener('mnemo-visible',event=>{nativeVisible=Boolean(event.detail);updateRenderVisibility()});
 addEventListener('visibilitychange',updateRenderVisibility);
