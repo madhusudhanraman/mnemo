@@ -54,3 +54,13 @@ When Spotify is playing and no reminder is being shown, optionally display the c
 ### Mission Control
 
 The companion explicitly uses stationary behavior, alongside canJoinAllSpaces and fullScreenAuxiliary. A floating window otherwise defaults to transient and disappears in Mission Control. It also ignores normal window cycling; the editor and Settings retain normal window behavior. Native checks verify these flags. The user confirmed that Mnemo remains visible in Mission Control after installing this change.
+
+## Simplified menus — 22 October
+
+The status dropdown keeps My reminders, Settings, Show/hide ghost, Pause/resume motion and Quit. Size, Colour and Launch at Login are accessed through native Settings; their duplicate entries were removed from both the status dropdown and application menu. Native checks verify the compact menu contents and retained Settings controls.
+
+## Companion and editor follow-up — 22 October
+
+On `fix-idle-jumps`: native dragging anchors the window to the original mouse grab point and retains mouse capture until release. Body bounds reserve 20 points at the sides/bottom, with the rendered crown allowed up to the menu bar. The larger transparent panel lets reminder/music tiles choose any side without imposing large movement margins. Physical multi-display verification remains pending.
+
+The editor title is now Mnemo with no duplicate body heading. Date/time wheels show an approximate time remaining (exact date/time in a tooltip). Blank reminders randomly rotate five curated placeholders, avoiding consecutive repeats and preserving drafts: Invade Berlin; Knock over a casino; Give the skeletons a bigger closet; Embark on a fool’s errand; Schedule a wild goose chase. Pirouettes retain idle sway throughout to avoid a snap at the start/end.

@@ -35,3 +35,28 @@ get('reminder-text').value='Two days';get('reminder-days').value='2';
 await get('reminder-form').onsubmit({preventDefault(){}});assert.equal(saves.length,1);
 const expected=new Date();expected.setDate(expected.getDate()+2);assert.ok(Math.abs(saves[0].dueAt-expected.getTime())<2000);
 console.log('PASS: Done/Later actions, persistent unanswered bubble, explicit postponement, exclusive modes, hour/minute wheels, AM/PM and calendar-day saving.');
+
+const realNow=Date.now;
+const fixedNow=new Date(2026,9,22,15,40).getTime();
+Date.now=()=>fixedNow;
+try{
+ for(const [minutes,label] of [[1,'In about a minute'],[25,'In about 25 minutes'],[60,'In about an hour'],[180,'In about 3 hours'],[2880,'In about 2 days'],[-5,'That time has passed']]){
+  const date=new Date(fixedNow+minutes*60000);
+  get('reminder-when').value=new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  get('mode-date').onclick();assert.equal(get('date-summary').textContent,label);
+  assert.ok(get('date-summary').title,'Exact date remains available as a tooltip');
+ }
+}finally{Date.now=realNow}
+console.log('PASS: picker summary expresses rough time remaining and identifies past times');
+
+get('reminder-text').value='';
+for(let i=0;i<100;i++){
+ const previous=get('reminder-text').placeholder;
+ handlers['mnemo-new-reminder']();
+ assert.ok(get('reminder-text').placeholder.endsWith('…'));
+ assert.notEqual(get('reminder-text').placeholder,previous,'Fresh prompts avoid consecutive repeats');
+ assert.equal(get('reminder-text').value,'','A prompt is never actual reminder text');
+}
+get('reminder-text').value='My draft';const draftPrompt=get('reminder-text').placeholder;
+handlers['mnemo-new-reminder']();assert.equal(get('reminder-text').value,'My draft');assert.equal(get('reminder-text').placeholder,draftPrompt);
+console.log('PASS: new reminder prompts rotate without replacing a draft');

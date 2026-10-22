@@ -57,6 +57,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     var observers: [Any] = []
     var mouseMonitors:[Any]=[]
     var hitRegions: [CGRect] = []
+    var lastUsableBounds = ""
+    var dragPointerStart:NSPoint?
+    var dragWindowStart:NSPoint?
+    var nativeDragMoved=false
     var pointerIsOverCompanion: Bool?
     var lastSentSystemActive: Bool?
     var trackingMenus=Set<ObjectIdentifier>()
@@ -112,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     func startMouseTracking() {
         guard mouseMonitors.isEmpty,trackingMenus.isEmpty else { return }
-        if let monitor=NSEvent.addLocalMonitorForEvents(matching:[.mouseMoved,.leftMouseDragged],handler:{ [weak self] event in self?.updateClickThrough();return event }) { mouseMonitors.append(monitor) }
+        if let monitor=NSEvent.addLocalMonitorForEvents(matching:[.mouseMoved,.leftMouseDown,.leftMouseDragged,.leftMouseUp],handler:{ [weak self] event in self?.trackCompanionDrag(event);self?.updateClickThrough();return event }) { mouseMonitors.append(monitor) }
         if let monitor=NSEvent.addGlobalMonitorForEvents(matching:[.mouseMoved,.leftMouseDragged],handler:{ [weak self] _ in self?.updateClickThrough() }) { mouseMonitors.append(monitor) }
     }
     func stopMouseTracking() {
@@ -132,7 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         ghostWeb.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-system-activity',{detail:\(active ? "true" : "false")}))",completionHandler:nil)
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if webView === ghostWeb { lastSentSystemActive=nil;updateSystemActivity();sendVisibility();sendSpotify() }
+        if webView === ghostWeb { lastSentSystemActive=nil;updateSystemActivity();sendVisibility();sendSpotify();lastUsableBounds="";sendUsableBounds() }
     }
     // Optional rendering overrides for performance experiments, e.g. `defaults write local.mnemo.companion debugIdleFPS -float 12`.
     func debugRendering() -> String {
@@ -149,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         (()=>{let next=0;const pending=new Map();window.mnemoNativeReply=reply=>{const p=pending.get(reply.id);if(!p)return;pending.delete(reply.id);reply.error?p.reject(new Error(reply.error)):p.resolve(reply.result)};
         const call=(method,payload={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.webkit.messageHandlers.mnemo.postMessage({id,method,payload})});
         const send=(method,payload={})=>window.webkit.messageHandlers.mnemo.postMessage({method,payload});
-        window.mnemoDesktop={mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifySkip:()=>call('spotifySkip')};
+        window.mnemoDesktop={nativeDrag:true,mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifyControl:command=>call('spotifyControl',{command})};
         window.addEventListener('error',e=>send('scriptError',{message:e.message}));
         })();
         """
@@ -166,11 +170,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let area = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         var origin=NSPoint(x:area.maxX-360,y:area.minY+30)
         if let saved=UserDefaults.standard.dictionary(forKey:"ghostRestingPosition"),let x=saved["x"] as? Double,let y=saved["y"] as? Double,x.isFinite,y.isFinite {
-            let candidate=NSRect(x:x,y:y,width:320,height:440)
-            if NSScreen.screens.contains(where:{$0.visibleFrame.intersects(candidate)}) { origin=NSPoint(x:x,y:y) }
+            let candidate=NSRect(x:x,y:y,width:840,height:760)
+            if NSScreen.screens.contains(where:{$0.visibleFrame.intersects(candidate)}) { origin=NSPoint(x:x,y:y); if !UserDefaults.standard.bool(forKey:"wideCompanionCanvas") { origin.x-=260;origin.y-=180 } }
         }
-        origin=boundedOrigin(origin,size:NSSize(width:320,height:440))
-        ghost = CompanionPanel(contentRect: NSRect(origin:origin,size:NSSize(width:320,height:440)), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        origin=boundedOrigin(origin,size:NSSize(width:840,height:760))
+        ghost = CompanionPanel(contentRect: NSRect(origin:origin,size:NSSize(width:840,height:760)), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         ghost.title = "Mnemo companion"; ghost.isOpaque = false; ghost.backgroundColor = .clear; ghost.hasShadow = false
         ghost.level = .floating; ghost.hidesOnDeactivate = false; ghost.collectionBehavior = CompanionPanel.companionBehavior
         // Floating windows otherwise default to transient (hidden in Mission Control).
@@ -183,10 +187,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     @objc func showManager() {
         if manager == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 720), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-            window.title = "Mnemo · Reminders"; window.minSize = NSSize(width: 400, height: 550); window.isReleasedWhenClosed = false
+            window.title = "Mnemo"; window.minSize = NSSize(width: 400, height: 550); window.isReleasedWhenClosed = false
             window.backgroundColor = NSColor(red: 0.14, green: 0.13, blue: 0.19, alpha: 1)
             managerWeb = makeWeb(mode: "manager",resource:"editor"); window.contentView = managerWeb; window.center(); manager = window
         }
+        managerWeb?.evaluateJavaScript("window.dispatchEvent(new Event('mnemo-new-reminder'))",completionHandler:nil)
         NSApp.activate(ignoringOtherApps: true); manager?.makeKeyAndOrderFront(nil)
     }
     var showInDock:Bool { UserDefaults.standard.object(forKey:"showInDock") as? Bool ?? true }
@@ -256,19 +261,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let menu = NSMenu()
         menu.addItem(withTitle: "My reminders…", action: #selector(showManager), keyEquivalent: "r")
         menu.addItem(withTitle:"Settings…",action:#selector(showSettings),keyEquivalent:",")
-        menu.addItem(withTitle:"Size…",action:#selector(showSizes),keyEquivalent:"")
-        let colourItem=NSMenuItem(title:"Colour",action:nil,keyEquivalent:"");colourItem.submenu=colourMenu();menu.addItem(colourItem)
         menu.addItem(withTitle: "Show / hide ghost", action: #selector(toggleGhost), keyEquivalent: "")
         menu.addItem(withTitle: "Pause / resume motion", action: #selector(toggleMotion), keyEquivalent: "")
-        menu.addItem(.separator())
-        addLaunchAtLoginItems(to:menu)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Mnemo", action: #selector(quit), keyEquivalent: "q")
         for item in menu.items { item.target = self }; statusItem.menu = menu
         let mainMenu=NSMenu(),applicationMenu=NSMenu(),applicationItem=NSMenuItem()
         let settingsItem=NSMenuItem(title:"Settings…",action:#selector(showSettings),keyEquivalent:",");settingsItem.target=self;applicationMenu.addItem(settingsItem);applicationMenu.addItem(.separator())
         let quitItem=NSMenuItem(title:"Quit Mnemo",action:#selector(quit),keyEquivalent:"q");quitItem.target=self
-        let sizeItem=NSMenuItem(title:"Size…",action:#selector(showSizes),keyEquivalent:"");sizeItem.target=self;applicationMenu.addItem(sizeItem);let colourMain=NSMenuItem(title:"Colour",action:nil,keyEquivalent:"");colourMain.submenu=colourMenu();applicationMenu.addItem(colourMain);applicationMenu.addItem(.separator());addLaunchAtLoginItems(to:applicationMenu);applicationMenu.addItem(.separator());applicationMenu.addItem(quitItem);applicationItem.submenu=applicationMenu;mainMenu.addItem(applicationItem);NSApp.mainMenu=mainMenu
+        applicationMenu.addItem(quitItem);applicationItem.submenu=applicationMenu;mainMenu.addItem(applicationItem);NSApp.mainMenu=mainMenu
         observeMenu(menu);observeMenu(applicationMenu);refreshLoginItemState()
     }
     func observeMenu(_ menu:NSMenu) {
@@ -415,9 +416,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let id = body["id"], payload = body["payload"] as? [String: Any] ?? [:]
         do {
             switch method {
-            case "spotifySkip":
+            case "spotifyControl":
                 guard mode == "companion",spotify.enabled else { throw ReminderError.invalid("Enable Spotify on Hover in Settings.") }
-                spotify.skip { [weak self,weak web] error in self?.reply(web:web,id:id,result:error == nil ? true:nil,error:error) }
+                guard let value=payload["command"] as? String,let command=SpotifyPlayback.Command(rawValue:value) else { throw ReminderError.invalid("Unknown Spotify control.") }
+                spotify.control(command) { [weak self,weak web] error in self?.reply(web:web,id:id,result:error == nil ? true:nil,error:error) }
             case "list": reply(web: web, id: id, result: try JSONSerialization.jsonObject(with: Data(store.json().utf8)))
             case "save":
                 guard let text = payload["text"] as? String, let dueAt = payload["dueAt"] as? Double else { throw ReminderError.invalid("A reminder needs text and a valid time.") }
@@ -439,6 +441,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 guard mode == "companion", let dx = payload["dx"] as? Double, let dy = payload["dy"] as? Double, dx.isFinite, dy.isFinite, abs(dx) < 500, abs(dy) < 500 else { return }
                 let origin=ghost.frame.origin
                 ghost.setFrameOrigin(boundedOrigin(NSPoint(x:origin.x+dx,y:origin.y-dy),size:ghost.frame.size,dragging:true))
+                sendUsableBounds()
                 if payload["remember"] as? Bool == true {
                     rememberDisplayPosition()
                 }
@@ -454,7 +457,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.stringValue ?? "unknown"
     }
     func bodyRect(origin:NSPoint,size:NSSize) -> CGRect {
-        let body=hitRegions.first ?? CGRect(x:96,y:220,width:128,height:150)
+        let body=hitRegions.first ?? CGRect(x:356,y:360,width:128,height:150)
         return CGRect(x:origin.x+body.minX,y:origin.y+size.height-body.maxY,width:body.width,height:body.height)
     }
     static func nearestArea(to point:NSPoint,areas:[CGRect]) -> CGRect? {
@@ -470,10 +473,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let body=bodyRect(origin:origin,size:size)
         let pointerArea=dragging ? NSScreen.screens.first(where:{$0.frame.contains(NSEvent.mouseLocation)})?.visibleFrame : nil
         guard let area=pointerArea ?? Self.nearestArea(to:NSPoint(x:body.midX,y:body.midY),areas:NSScreen.screens.map(\.visibleFrame)) else { return origin }
-        return NSPoint(x:origin.x+min(max(body.minX,area.minX),max(area.minX,area.maxX-body.width))-body.minX,
-                       y:origin.y+min(max(body.minY,area.minY),max(area.minY,area.maxY-body.height))-body.minY)
+        return Self.safeCompanionOrigin(origin,size:size,area:area,body:body)
+    }
+    static func safeCompanionOrigin(_ origin:NSPoint,size:NSSize,area:CGRect,body:CGRect) -> NSPoint {
+        let safe=area.insetBy(dx:20,dy:20)
+        return NSPoint(x:origin.x+min(max(body.minX,safe.minX),max(safe.minX,safe.maxX-body.width))-body.minX,
+                       y:origin.y+min(max(body.minY,safe.minY),max(safe.minY,area.maxY-body.height))-body.minY)
+    }
+    func sendUsableBounds() {
+        guard ghost != nil,ghostWeb != nil else { return }
+        let body=bodyRect(origin:ghost.frame.origin,size:ghost.frame.size)
+        guard let area=Self.nearestArea(to:NSPoint(x:body.midX,y:body.midY),areas:NSScreen.screens.map(\.visibleFrame)) else { return }
+        let frame=ghost.frame
+        let json="{left:\(max(0,area.minX-frame.minX)),top:\(max(0,frame.maxY-area.maxY)),right:\(min(frame.width,area.maxX-frame.minX)),bottom:\(min(frame.height,frame.maxY-area.minY))}"
+        guard json != lastUsableBounds else { return };lastUsableBounds=json
+        ghostWeb.evaluateJavaScript("window.mnemoUsableBounds=\(json);window.dispatchEvent(new Event('mnemo-bounds'))",completionHandler:nil)
     }
     func rememberDisplayPosition() {
+        UserDefaults.standard.set(true,forKey:"wideCompanionCanvas")
         let body=bodyRect(origin:ghost.frame.origin,size:ghost.frame.size)
         guard let screen=NSScreen.screens.first(where:{$0.frame.contains(NSPoint(x:body.midX,y:body.midY))}) else { return }
         let area=screen.visibleFrame,id=displayID(screen)
@@ -487,6 +504,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         guard ghost != nil else { return }
         let defaults=UserDefaults.standard
         var origin=ghost.frame.origin
+        // Dock, menu bar and full-screen changes resize the visible area of the current display; only keep him on screen then.
+        let body=bodyRect(origin:origin,size:ghost.frame.size)
+        let current=NSScreen.screens.first(where:{$0.frame.contains(NSPoint(x:body.midX,y:body.midY))})
+        if let current=current,displayID(current)==defaults.string(forKey:"ghostPreferredDisplay") {
+            let bounded=boundedOrigin(origin,size:ghost.frame.size)
+            if bounded != origin { ghost.setFrameOrigin(bounded) }
+            nextColourSample = .distantPast;updateClickThrough();return
+        }
         if let preferred=defaults.string(forKey:"ghostPreferredDisplay"),
            let screen=NSScreen.screens.first(where:{displayID($0)==preferred}),
            let positions=defaults.dictionary(forKey:"ghostDisplayPositions"),let saved=positions[preferred] as? [String:Double],
@@ -499,10 +524,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         nextColourSample = .distantPast;updateClickThrough()
     }
 
+    static func dragOrigin(start:NSPoint,pointerStart:NSPoint,pointer:NSPoint) -> NSPoint {
+        NSPoint(x:start.x+pointer.x-pointerStart.x,y:start.y+pointer.y-pointerStart.y)
+    }
+    func trackCompanionDrag(_ event:NSEvent) {
+        switch event.type {
+        case .leftMouseDown:
+            guard event.window === ghost,!event.modifierFlags.contains(.shift) else { return }
+            let mouse=NSEvent.mouseLocation
+            let point=CGPoint(x:mouse.x-ghost.frame.minX,y:ghost.frame.maxY-mouse.y)
+            guard hitRegions.first?.contains(point) == true else { return }
+            dragPointerStart=mouse;dragWindowStart=ghost.frame.origin;nativeDragMoved=false
+            ghost.ignoresMouseEvents=false
+        case .leftMouseDragged:
+            guard let pointerStart=dragPointerStart,let start=dragWindowStart else { return }
+            let pointer=NSEvent.mouseLocation
+            if hypot(pointer.x-pointerStart.x,pointer.y-pointerStart.y)>5 { nativeDragMoved=true }
+            guard nativeDragMoved else { return }
+            ghost.setFrameOrigin(boundedOrigin(Self.dragOrigin(start:start,pointerStart:pointerStart,pointer:pointer),size:ghost.frame.size,dragging:true))
+            sendUsableBounds()
+        case .leftMouseUp:
+            // Deliver release to WebKit before restoring click-through.
+            DispatchQueue.main.async { [weak self] in
+                self?.dragPointerStart=nil;self?.dragWindowStart=nil;self?.nativeDragMoved=false;self?.updateClickThrough()
+            }
+        default: break
+        }
+    }
     func updateClickThrough() {
+        sendUsableBounds()
         guard ghost != nil, !hitRegions.isEmpty, trackingMenus.isEmpty else { return }
         let mouse = NSEvent.mouseLocation, point = CGPoint(x: mouse.x-ghost.frame.minX, y: ghost.frame.maxY-mouse.y)
-        let interactive=hitRegions.contains(where: { $0.contains(point) })
+        let interactive=dragPointerStart != nil || hitRegions.contains(where: { $0.contains(point) })
         if ghost.ignoresMouseEvents == interactive { ghost.ignoresMouseEvents = !interactive }
         if pointerIsOverCompanion != interactive {
             pointerIsOverCompanion=interactive
