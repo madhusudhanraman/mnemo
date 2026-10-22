@@ -16,10 +16,14 @@ final class SpotifyPlayback {
         if value { refresh(force:true) }
     }
     func refresh(force:Bool=false) {
-        run(skip:false,force:force)
+        run(command:nil,force:force)
     }
-    func skip(completion:@escaping (String?)->Void) { run(skip:true,force:true,completion:completion) }
-    private func run(skip:Bool,force:Bool,completion:((String?)->Void)?=nil) {
+    enum Command:String {
+        case previous,next,toggle
+        var eventID:String { switch self { case .previous:return "Prev";case .next:return "Next";case .toggle:return "PlPs" } }
+    }
+    func control(_ command:Command,completion:@escaping (String?)->Void) { run(command:command,force:true,completion:completion) }
+    private func run(command:Command?,force:Bool,completion:((String?)->Void)?=nil) {
         guard enabled else { completion?("Enable Spotify on Hover in Settings.");return }
         guard !busy else { completion?("Spotify is updating. Try again.");return }
         guard force || Date()>=nextRead else { return }
@@ -33,21 +37,29 @@ final class SpotifyPlayback {
         guard let pid=NSRunningApplication.runningApplications(withBundleIdentifier:"com.spotify.client").first?.processIdentifier else { busy=false;completion?("Spotify is not running.");return }
         queue.async { [weak self] in
             var error:NSError?
-            var title="",artist="",playing=false
+            var title="",artist="",playing=false,available=false
             do {
                 let target=NSAppleEventDescriptor(processIdentifier:pid)
                 if let descriptor=target.aeDesc {
                     let permission=AEDeterminePermissionToAutomateTarget(descriptor,Self.code("****"),Self.code("****"),true)
                     if permission != noErr { throw NSError(domain:NSOSStatusErrorDomain,code:Int(permission)) }
                 }
-                if skip { _ = try Self.send(target:target,eventClass:"spfy",eventID:"Next") }
+                var requestedPlaying:Bool?
+                if command == .toggle {
+                    let before=try Self.send(target:target,property:Self.property("pPlS"))
+                    requestedPlaying=before.enumCodeValue != Self.code("kPSP")
+                }
+                if let command=command { _ = try Self.send(target:target,eventClass:"spfy",eventID:command.eventID) }
                 let state=try Self.send(target:target,property:Self.property("pPlS"))
-                playing=state.enumCodeValue == Self.code("kPSP")
-                if playing {
+                // Spotify can acknowledge a command before its state property catches up.
+                playing=requestedPlaying ?? (state.enumCodeValue == Self.code("kPSP"))
+                // Read metadata using Spotify's observed state, not the requested
+                // button state: a just-paused track may still report playing.
+                if Self.hasCurrentTrack(state.enumCodeValue) {
                     let track=Self.property("pTrk")
                     title=try Self.send(target:target,property:Self.property("pnam",container:track)).stringValue ?? ""
                     artist=try Self.send(target:target,property:Self.property("pArt",container:track)).stringValue ?? ""
-                    playing = !title.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty
+                    available = !title.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty
                 }
             } catch let failure as NSError { error=failure }
             let denied=error?.code == -1743
@@ -64,10 +76,19 @@ final class SpotifyPlayback {
                     completion?(denied ? "Allow Mnemo to control Spotify in Automation settings.":"Spotify could not complete the request.")
                 } else {
                     self.onStatus?(nil)
-                    self.onChange?(["playing":playing,"title":title,"artist":artist]);completion?(nil)
+                    self.onChange?(["playing":playing,"available":available,"title":title,"artist":artist]);completion?(nil)
+                    if command != nil {
+                        DispatchQueue.main.asyncAfter(deadline:.now()+0.4) { [weak self] in
+                            guard let self=self,self.enabled,self.generation==token else { return }
+                            self.refresh(force:true)
+                        }
+                    }
                 }
             }
         }
+    }
+    static func hasCurrentTrack(_ state:UInt32) -> Bool {
+        state == code("kPSP") || state == code("kPSp")
     }
     static func code(_ text:String) -> UInt32 { text.utf8.reduce(0){($0<<8)|UInt32($1)} }
     static func property(_ name:String,container:NSAppleEventDescriptor = .null()) -> NSAppleEventDescriptor {

@@ -22,8 +22,8 @@ source+='\nglobalThis.page={frame,model,companion,peekaboo,spin,toggleMotion,get
 function setup(native=false,activityAware=false){
  let now=0;
  const elements=new Map(),moves=[],handlers=new Map();
- const el=id=>{if(!elements.has(id)){const classes=new Set();elements.set(id,{offsetWidth:native?240:460,offsetHeight:native?240:460,getBoundingClientRect(){return native?{left:40,top:160,width:240,height:240}:{left:300,top:200,width:460,height:460}},animate(){return {cancel(){}}},style:{},setAttribute(){},setPointerCapture(){},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x)}})}return elements.get(id)};
- const desktop=native?{mode:'companion',moveBy:delta=>moves.push(delta),hitRegions(){}}:undefined;
+ const el=id=>{if(!elements.has(id)){const classes=new Set();elements.set(id,{offsetWidth:native?240:460,offsetHeight:native?240:460,getBoundingClientRect(){return native?{left:40,top:160,width:240,height:240}:{left:300,top:200,width:460,height:460}},animate(){return {cancel(){}}},style:{},dataset:{},setAttribute(){},setPointerCapture(){},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x)}})}return elements.get(id)};
+ const desktop=native?{nativeDrag:true,mode:'companion',moveBy:delta=>moves.push(delta),hitRegions(){}}:undefined;
  if(activityAware)desktop.systemActive=true;
  globalThis.renderCount=0;globalThis.openCount=0;
  const names=['document','window','innerWidth','innerHeight','devicePixelRatio','matchMedia','addEventListener','requestAnimationFrame','setTimeout','clearTimeout','performance','getComputedStyle'];
@@ -61,6 +61,7 @@ const nativePet=native.el('#pet');native.setHover(true);const frozen={...native.
 native.setHover(false);native.advance(1);
 nativePet.onpointerdown(down());nativePet.onpointermove(down(940));nativePet.onpointerup();nativePet.onclick({shiftKey:false});
 assert.equal(globalThis.openCount,0,'Native drag must not open reminders');
+assert.equal(native.moves.length,1,'Native dragging does not also send web movement deltas');
 assert.equal(native.moves.at(-1).remember,true,'Dropping establishes new resting position');
 assert.deepEqual(native.page.wander,{x:0,y:0},'New orbit starts from the drop location');
 for(let t=0;t<3600;t+=.1){const w=idleOffset(t);assert.ok(Math.abs(w.x)<=32&&Math.abs(w.y)<=20)}
@@ -84,3 +85,15 @@ const pausedTime=activity.page.time;
 activity.setActive(false);activity.setActive(true);activity.advance(30);
 assert.equal(activity.page.time,pausedTime,'System activity respects manual Pause');
 console.log('PASS: system-wide activity prevents sleep, inactivity settles, renewed activity wakes, and Pause remains in control.');
+
+const pirouette=setup(true);pirouette.advance(132);
+let lastYaw=pirouette.page.model.rotation.y;
+pirouette.page.spin();
+for(let i=0;i<125;i++){
+ pirouette.advance(1);const yaw=pirouette.page.model.rotation.y;
+ const delta=Math.atan2(Math.sin(yaw-lastYaw),Math.cos(yaw-lastYaw));
+ const elapsed=pirouette.page.time-pirouette.page.spinStart;
+ assert.ok(Math.abs(delta)<((elapsed<.12||elapsed>3.65)?.03:.2),`Pirouette facing step at ${elapsed}: ${delta}`);
+ lastYaw=yaw;
+}
+console.log('PASS: pirouette preserves continuous facing at start and finish');

@@ -9,7 +9,7 @@ const members=exported[1].split(',').map(member=>{const [local,name]=member.trim
 const bundledThree=`const THREE=(()=>{${three.slice(0,exported.index)}\nreturn {${members}};})();`;
 const model=read('ghost.mjs').replace(/^import .*;\n/gm,'').replace('export function createGhost','function createGhost');
 template=template.replace(/^import \* as THREE from [^;]+;/m,()=>bundledThree);
-const spotifyCaption=read('spotify-caption.mjs').replace('export function createSpotifyCaption','function createSpotifyCaption');
+const spotifyCaption=read('tile-placement.mjs').replace('export function placeTile','function placeTile')+'\n'+read('spotify-caption.mjs').replace(/^import .*;\n/gm,'').replace('export function createSpotifyCaption','function createSpotifyCaption');
 const reminders=read('reminders.mjs').replace('export function startReminders','function startReminders');
 const fade=read('fade-renderer.mjs').replace(/^import .*;\n/gm,'').replace('export function createFadeRenderer','function createFadeRenderer');
 const sizeUtils=read('size-preview.mjs').replace(/^import .*;\n/gm,'').replace(/export function /g,'function ');

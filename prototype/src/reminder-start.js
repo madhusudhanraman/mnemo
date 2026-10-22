@@ -22,7 +22,8 @@ const spotifyCaption=createSpotifyCaption({desktop,pet,bubble,isReminder:()=>act
 function reportHitRegions(now){
  if(!desktop||desktop.mode!=='companion'||now-lastHitReport<200)return;lastHitReport=now;
  const r=canvas.getBoundingClientRect();
- const regions=[{x:r.left+r.width*.24,y:r.top+r.height*.20,width:r.width*.52,height:r.height*.66}];
+ const crown=r.top+(-headAnchor.y*.5+.5)*r.height;
+ const regions=[{x:r.left+r.width*.24,y:crown,width:r.width*.52,height:Math.max(1,r.top+r.height*.86-crown)}];
  for(const element of [bubble,spotifyCaption.element]){
   if(element===bubble&&!bubble.classList.contains('show'))continue;
   if(element===spotifyCaption.element&&!spotifyCaption.interactive)continue;
@@ -36,7 +37,7 @@ function wakeCompanion(){lastInteraction=time;behaviours.wake();invalidateRender
 window.addEventListener('mnemo-system-activity',event=>{systemActive=Boolean(event.detail);if(systemActive)wakeCompanion();else invalidateRender()});
 function celebrateDone(){wakeCompanion();behaviours.flutter()}
 const reminderUI=startReminders({showThought,hideThought,onDone:celebrateDone,onDesktopMode(mode){
- position={x:(innerWidth-pet.offsetWidth)/2,y:160};target={...position};
+ position={x:(innerWidth-pet.offsetWidth)/2,y:desktop.mode==='companion'?300:160};target={...position};
  if(mode==='manager')paused=true;
 }});
 window.addEventListener('mnemo-open-reminders',reminderUI.open);
@@ -52,10 +53,12 @@ function applyCompanionSize(height){
  const canvasSize=height/neutralSize.height;
  pet.style.width=`${canvasSize}px`;pet.style.height=`${canvasSize}px`;
  renderer.setSize(Math.ceil(canvasSize),Math.ceil(canvasSize),false);fadeRenderer.resize();
- position={x:(innerWidth-canvasSize)/2,y:370-neutralSize.bottom*canvasSize};target={...position};
+ position={x:(innerWidth-canvasSize)/2,y:510-neutralSize.bottom*canvasSize};target={...position};
 }
 if(desktop?.preferredHeight)applyCompanionSize(desktop.preferredHeight);
 window.addEventListener('mnemo-size',event=>{applyCompanionSize(Number(event.detail));invalidateRender()});
 
-const positionMusic=()=>{const r=canvas.getBoundingClientRect();spotifyCaption.position({left:r.left+r.width*.24,bottom:r.top+r.height*.86,width:r.width*.52})};
+const positionMusic=()=>{const r=canvas.getBoundingClientRect();spotifyCaption.position({left:r.left+r.width*.24,top:r.top+r.height*.20,bottom:r.top+r.height*.86,width:r.width*.52})};
 const originalPositionBubble=positionBubble;positionBubble=()=>{originalPositionBubble();positionMusic()};
+
+window.addEventListener('mnemo-bounds',()=>{positionBubble();lastHitReport=0;reportHitRegions(performance.now());invalidateRender()});
