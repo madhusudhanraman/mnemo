@@ -6,6 +6,8 @@ Mnemo is developed on two Macs (personal and work), coordinated through GitHub. 
 
 ## Current work
 
+Local work on `projects` adds Work/Home projects, optional task reminders and project-labelled announcements. See `docs/projects.md` for data migration and validation. The user requested publication, a PR merge into main, and an office handoff on 23 October 2026.
+
 Native Mac and Spotify integration was merged into main on 20 October 2026. Follow-up work on `fix-idle-jumps` (22 October) adds freer body-based screen bounds, adaptive reminder/music placement, native anchored dragging, a compact menu, relative reminder timing, five curated rotating placeholders, smooth pirouette handoffs and Previous/Play–Pause/Next controls. See `docs/spotify.md` and `docs/native-mac.md`. The signed build is installed on this Mac. Physical multi-display/Spaces verification and energy measurements for the enlarged transparent panel remain outstanding. For idle energy and settle/stir behaviour, read `docs/performance.md` before continuing that work.
 
 ## Publishing changes

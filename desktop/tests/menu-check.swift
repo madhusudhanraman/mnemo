@@ -9,7 +9,7 @@ delegate.createMenu()
 let originalStatus=delegate.statusItem!,originalMenu=delegate.statusItem.menu!
 let originalMain=app.mainMenu!
 assert(originalMenu.delegate === delegate)
-assert(originalMenu.items.filter({!$0.isSeparatorItem}).map(\.title) == ["My reminders…","Settings…","Show / hide ghost","Pause / resume motion","Quit Mnemo"])
+assert(originalMenu.items.filter({!$0.isSeparatorItem}).map(\.title) == ["Open Mnemo…","Settings…","Show / hide ghost","Pause / resume motion","Quit Mnemo"])
 assert(originalMain.items.first!.submenu!.items.filter({!$0.isSeparatorItem}).map(\.title) == ["Settings…","Quit Mnemo"])
 delegate.createMenu()
 assert(delegate.statusItem === originalStatus && delegate.statusItem.menu === originalMenu)

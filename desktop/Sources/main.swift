@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         (()=>{let next=0;const pending=new Map();window.mnemoNativeReply=reply=>{const p=pending.get(reply.id);if(!p)return;pending.delete(reply.id);reply.error?p.reject(new Error(reply.error)):p.resolve(reply.result)};
         const call=(method,payload={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.webkit.messageHandlers.mnemo.postMessage({id,method,payload})});
         const send=(method,payload={})=>window.webkit.messageHandlers.mnemo.postMessage({method,payload});
-        window.mnemoDesktop={nativeDrag:true,mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifyControl:command=>call('spotifyControl',{command})};
+        window.mnemoDesktop={nativeDrag:true,mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),listProjects:()=>call('listProjects'),saveProject:project=>call('saveProject',project),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifyControl:command=>call('spotifyControl',{command})};
         window.addEventListener('error',e=>send('scriptError',{message:e.message}));
         })();
         """
@@ -237,7 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     func applicationDockMenu(_ sender:NSApplication) -> NSMenu? {
         let menu=NSMenu()
-        for (title,action) in [("My reminders…",#selector(showManager)),("Settings…",#selector(showSettings))] {
+        for (title,action) in [("Open Mnemo…",#selector(showManager)),("Settings…",#selector(showSettings))] {
             let item=NSMenuItem(title:title,action:action,keyEquivalent:"");item.target=self;menu.addItem(item)
         }
         observeMenu(menu)
@@ -259,7 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         statusItem.button?.image=mnemoMenuIcon();statusItem.button?.imagePosition = .imageOnly
         statusItem.button?.setAccessibilityLabel("Mnemo reminders");statusItem.button?.toolTip = "Mnemo · your reminder companion"
         let menu = NSMenu()
-        menu.addItem(withTitle: "My reminders…", action: #selector(showManager), keyEquivalent: "r")
+        menu.addItem(withTitle: "Open Mnemo…", action: #selector(showManager), keyEquivalent: "r")
         menu.addItem(withTitle:"Settings…",action:#selector(showSettings),keyEquivalent:",")
         menu.addItem(withTitle: "Show / hide ghost", action: #selector(toggleGhost), keyEquivalent: "")
         menu.addItem(withTitle: "Pause / resume motion", action: #selector(toggleMotion), keyEquivalent: "")
@@ -421,9 +421,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 guard let value=payload["command"] as? String,let command=SpotifyPlayback.Command(rawValue:value) else { throw ReminderError.invalid("Unknown Spotify control.") }
                 spotify.control(command) { [weak self,weak web] error in self?.reply(web:web,id:id,result:error == nil ? true:nil,error:error) }
             case "list": reply(web: web, id: id, result: try JSONSerialization.jsonObject(with: Data(store.json().utf8)))
+            case "listProjects": reply(web:web,id:id,result:try JSONSerialization.jsonObject(with:Data(store.projectsJSON().utf8)))
+            case "saveProject":
+                guard let name=payload["name"] as? String,let space=payload["space"] as? String else { throw ReminderError.invalid("A project needs a name and space.") }
+                try store.saveProject(id:payload["id"] as? String,name:name,space:space);changed()
+                reply(web:web,id:id,result:try JSONSerialization.jsonObject(with:Data(store.projectsJSON().utf8)))
             case "save":
-                guard let text = payload["text"] as? String, let dueAt = payload["dueAt"] as? Double else { throw ReminderError.invalid("A reminder needs text and a valid time.") }
-                try store.save(id: payload["id"] as? String, text: text, dueAt: dueAt); changed()
+                guard let text = payload["text"] as? String else { throw ReminderError.invalid("A reminder needs text and a valid time.") }
+                try store.save(id: payload["id"] as? String, text: text, dueAt: payload["dueAt"] as? Double,projectID:payload["projectID"] as? String); changed()
                 reply(web: web, id: id, result: try JSONSerialization.jsonObject(with: Data(store.json().utf8)))
             case "action":
                 guard let item = payload["id"] as? String, let action = payload["action"] as? String else { throw ReminderError.invalid("Invalid reminder action.") }
