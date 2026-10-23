@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {startReminders} from '../reminders.mjs';
+const elements=new Map(),events={};let shown;
+function element(){return {value:'',hidden:false,disabled:false,textContent:'',children:[],attrs:{},style:{},classList:{add(){},remove(){}},append(...items){this.children.push(...items)},replaceChildren(){this.children=[]},setAttribute(k,v){this.attrs[k]=v},focus(){},reset(){},getBoundingClientRect(){return {left:0,top:0,width:176,height:176}}}}
+const get=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id)};
+globalThis.document={createElement:element,getElementById:get,body:{append(){},classList:{add(){}}}};
+globalThis.setTimeout=()=>0;globalThis.clearTimeout=()=>{};
+let rows=[{id:'existing',text:'Old reminder',dueAt:Date.now()+86400000,status:'pending',createdAt:1}],projects=[],serial=0;
+const native={mode:'companion',manage(){},async list(){return structuredClone(rows)},async listProjects(){return structuredClone(projects)},async saveProject(item){const p=projects.find(p=>p.id===item.id);if(p)Object.assign(p,item);else projects.push({...item,id:'p'+(++serial)});return structuredClone(projects)},async save(item){const p=rows.find(r=>r.id===item.id),next={...item,id:p?.id||'t'+(++serial),status:item.dueAt==null?'task':'pending',createdAt:p?.createdAt||Date.now()};if(p)Object.assign(p,next);else rows.push(next);return structuredClone(rows)},async action({id,action}){const r=rows.find(r=>r.id===id);r.status=action==='done'?'done':r.dueAt==null?'task':'pending';return structuredClone(rows)}};
+globalThis.window={mnemoDesktop:native,addEventListener:(name,fn)=>events[name]=fn};
+const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve()};
+startReminders({showThought:(text,options)=>shown={text,...options},hideThought(){},onDesktopMode(){}});await flush();
+assert.equal(get('projects-view').hidden,false);assert.equal(get('reminder-content').hidden,true);
+get('view-reminders').onclick();assert.equal(get('reminder-content').hidden,false);assert.equal(get('reminder-list').children[0].children[0].children[0].textContent,'Old reminder','Existing reminders remain accessible');
+get('view-projects').onclick();get('new-project').onclick();get('project-name').value='<Website>';await get('project-form').onsubmit({preventDefault(){}});
+assert.equal(projects[0].space,'Work');assert.equal(get('project-title').textContent,'<Website>');assert.equal(get('reminder-schedule').hidden,true,'Tasks default to no reminder');assert.ok(['Invade Berlin…','Knock over a casino…','Give the skeletons a bigger closet…','Embark on a fool’s errand…','Schedule a wild goose chase…'].includes(get('reminder-text').placeholder),'Tasks use the shared reminder placeholders');
+get('reminder-text').value='Plan';await get('reminder-form').onsubmit({preventDefault(){}});
+const task=rows.find(r=>r.text==='Plan');assert.equal(task.projectID,projects[0].id);assert.equal(task.dueAt,null);
+const check=get('reminder-list').children[0].children[0];check.checked=true;await check.onchange();assert.equal(rows.find(r=>r.id===task.id).status,'done');
+const completedCheck=get('completed-list').children[0].children[0];completedCheck.checked=false;await completedCheck.onchange();assert.equal(rows.find(r=>r.id===task.id).status,'task');
+get('task-reminder').onclick();assert.equal(get('reminder-schedule').hidden,false);get('reminder-text').value='Review';get('reminder-days').value='2';await get('reminder-form').onsubmit({preventDefault(){}});assert.ok(rows.find(r=>r.text==='Review').dueAt>Date.now());
+get('project-back').onclick();get('space-home').onclick();assert.equal(get('project-list').children[0].textContent,'No projects yet.','Home does not contain Work projects');
+get('new-project').onclick();get('project-name').value='Kitchen';await get('project-form').onsubmit({preventDefault(){}});assert.equal(projects[1].space,'Home');
+rows.push({id:'due',text:'Review',dueAt:1,status:'due',createdAt:1,projectID:projects[0].id});events['mnemo-reminders-changed']();await flush();assert.equal(shown.meta,'Work · <Website>');assert.deepEqual(shown.actions.map(a=>a.label),['Done','Remind Me Later']);
+console.log('PASS: Work/Home isolation, project creation, safe titles, undated tasks, completion/reopen, optional reminders, legacy reminder access and project-labelled announcements');
