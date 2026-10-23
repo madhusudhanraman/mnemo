@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {startReminders} from '../reminders.mjs';
 const elements=new Map(),events={};let shown;
-function element(){return {value:'',hidden:false,disabled:false,textContent:'',children:[],attrs:{},style:{},classList:{add(){},remove(){}},append(...items){this.children.push(...items)},replaceChildren(){this.children=[]},setAttribute(k,v){this.attrs[k]=v},focus(){},reset(){},getBoundingClientRect(){return {left:0,top:0,width:176,height:176}}}}
+function element(){return {value:'',hidden:false,disabled:false,textContent:'',children:[],attrs:{},style:{},classList:{add(){},remove(){}},append(...items){this.children.push(...items)},insertAdjacentElement(){},replaceChildren(){this.children=[]},setAttribute(k,v){this.attrs[k]=v},focus(){},reset(){},getBoundingClientRect(){return {left:0,top:0,width:176,height:176}}}}
 const get=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id)};
 globalThis.document={createElement:element,getElementById:get,body:{append(){},classList:{add(){}}}};
 globalThis.setTimeout=()=>0;globalThis.clearTimeout=()=>{};
@@ -13,13 +13,42 @@ startReminders({showThought:(text,options)=>shown={text,...options},hideThought(
 assert.equal(get('projects-view').hidden,false);assert.equal(get('reminder-content').hidden,true);
 get('view-reminders').onclick();assert.equal(get('reminder-content').hidden,false);assert.equal(get('reminder-list').children[0].children[0].children[0].textContent,'Old reminder','Existing reminders remain accessible');
 get('view-projects').onclick();get('new-project').onclick();get('project-name').value='<Website>';await get('project-form').onsubmit({preventDefault(){}});
-assert.equal(projects[0].space,'Work');assert.equal(get('project-title').textContent,'<Website>');assert.equal(get('reminder-schedule').hidden,true,'Tasks default to no reminder');assert.ok(['Invade Berlin…','Knock over a casino…','Give the skeletons a bigger closet…','Embark on a fool’s errand…','Schedule a wild goose chase…'].includes(get('reminder-text').placeholder),'Tasks use the shared reminder placeholders');
-get('reminder-text').value='Plan';await get('reminder-form').onsubmit({preventDefault(){}});
-const task=rows.find(r=>r.text==='Plan');assert.equal(task.projectID,projects[0].id);assert.equal(task.dueAt,null);
+assert.equal(projects[0].space,'Work');assert.equal(get('project-title').textContent,'<Website>');assert.equal(get('reminder-schedule').hidden,true,'Tasks default to no reminder');assert.ok(['Invade Berlin…','Knock over a casino…','Move skeletons to a bigger closet…','Embark on a fool’s errand…','Schedule a wild goose chase…','Check whether a ransom is tax-deductible…'].includes(get('reminder-text').placeholder),'Tasks use the shared reminder placeholders');
+get('reminder-text').value='Plan';get('reminder-note').value='Read chapter 2.\n<Keep this as text>';await get('reminder-form').onsubmit({preventDefault(){}});
+const task=rows.find(r=>r.text==='Plan');assert.equal(task.projectID,projects[0].id);assert.equal(task.dueAt,null);assert.equal(task.notes,'Read chapter 2.\n<Keep this as text>');assert.equal(get('reminder-message').textContent,'','New task is its own confirmation; no stale status');
+const noteDetails=get('reminder-list').children[0].children[1].children[2];assert.equal(noteDetails.textContent,task.notes,'Notes are rendered as plain text');
+get('reminder-list').children[0].children[2].children.find(b=>b.textContent==='Edit').onclick();assert.equal(get('reminder-note').value,task.notes);get('cancel-edit').onclick();assert.equal(get('reminder-note').value,'');
 const check=get('reminder-list').children[0].children[0];check.checked=true;await check.onchange();assert.equal(rows.find(r=>r.id===task.id).status,'done');
 const completedCheck=get('completed-list').children[0].children[0];completedCheck.checked=false;await completedCheck.onchange();assert.equal(rows.find(r=>r.id===task.id).status,'task');
 get('task-reminder').onclick();assert.equal(get('reminder-schedule').hidden,false);get('reminder-text').value='Review';get('reminder-days').value='2';await get('reminder-form').onsubmit({preventDefault(){}});assert.ok(rows.find(r=>r.text==='Review').dueAt>Date.now());
-get('project-back').onclick();get('space-home').onclick();assert.equal(get('project-list').children[0].textContent,'No projects yet.','Home does not contain Work projects');
+get('view-projects').onclick();
+let projectRow=get('project-list').children[0];
+assert.equal(projectRow.children[0].textContent,'<Website>');
+assert.equal(projectRow.children[1].textContent,'2');assert.equal(projectRow.children[1].hidden,false);
+assert.equal(projectRow.attrs['aria-label'],'<Website>, 2 open tasks');
+assert.equal(projectRow.children.length,3,'Project rows omit task preview text');
+await native.action({id:task.id,action:'done'});events['mnemo-reminders-changed']();await flush();
+projectRow=get('project-list').children[0];assert.equal(projectRow.children[1].textContent,'1');assert.equal(projectRow.attrs['aria-label'],'<Website>, 1 open task');
+get('space-home').onclick();assert.equal(get('project-list').children[0].textContent,'No projects yet.','Home does not contain Work projects');
 get('new-project').onclick();get('project-name').value='Kitchen';await get('project-form').onsubmit({preventDefault(){}});assert.equal(projects[1].space,'Home');
+get('view-projects').onclick();const emptyProject=get('project-list').children[0];assert.equal(emptyProject.children[1].hidden,true);assert.equal(emptyProject.attrs['aria-label'],'Kitchen, no open tasks');emptyProject.onclick();assert.equal(get('project-title').textContent,'Kitchen');
 rows.push({id:'due',text:'Review',dueAt:1,status:'due',createdAt:1,projectID:projects[0].id});events['mnemo-reminders-changed']();await flush();assert.equal(shown.meta,'Work · <Website>');assert.deepEqual(shown.actions.map(a=>a.label),['Done','Remind Me Later']);
 console.log('PASS: Work/Home isolation, project creation, safe titles, undated tasks, completion/reopen, optional reminders, legacy reminder access and project-labelled announcements');
+
+get('view-projects').onclick();
+events['mnemo-location']({detail:'Work'});assert.equal(get('space-tabs').hidden,true);assert.equal(get('project-list').children[0].children[0].textContent,'<Website>');
+events['mnemo-location']({detail:'Home'});assert.equal(get('space-tabs').hidden,true);assert.equal(get('project-list').children[0].children[0].textContent,'Kitchen');
+get('project-list').children[0].onclick();get('reminder-text').value='A draft';get('reminder-note').value='Draft notes';
+events['mnemo-location']({detail:'Work'});assert.equal(get('reminder-text').value,'A draft');assert.equal(get('reminder-note').value,'Draft notes');
+events['mnemo-location']({detail:'Both'});assert.equal(get('space-tabs').hidden,false);
+assert.equal(projects.length,2,'Changing usage location never deletes either space');
+console.log('PASS: Home/Work hide tabs, Both restores them, projects and drafts are preserved');
+
+const projectBeforeRename=projects.find(p=>p.name==='Kitchen');
+get('project-title').onclick();assert.equal(get('project-title-form').hidden,false);assert.equal(get('project-title-input').value,'Kitchen');
+get('project-title-input').value='Kitchen notes';await get('project-title-form').onsubmit({preventDefault(){}});
+assert.equal(projects.find(p=>p.id===projectBeforeRename.id).name,'Kitchen notes');assert.equal(get('project-title').textContent,'Kitchen notes');
+assert.equal(get('reminder-text').value,'A draft','Renaming preserves a task draft');assert.equal(get('reminder-note').value,'Draft notes');
+get('project-title').onclick();get('project-title-input').value='Do not save';get('project-title-form').onkeydown({key:'Escape',preventDefault(){}});
+assert.equal(get('project-title-form').hidden,true);assert.equal(projects.find(p=>p.id===projectBeforeRename.id).name,'Kitchen notes');
+console.log('PASS: click-to-rename saves in place, Escape cancels and task drafts survive');

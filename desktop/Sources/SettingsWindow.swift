@@ -9,6 +9,7 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
         let loginSettings:()->Void
         let refresh:()->Void
         var spotify:(Bool)->Void = {_ in}
+        var location:(String)->Void = {_ in}
     }
     private let actions:Actions
     let dockToggle=NSButton(checkboxWithTitle:"Show in Dock",target:nil,action:nil)
@@ -18,10 +19,11 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
     let colourPicker=NSPopUpButton(frame:.zero,pullsDown:false)
     let spotifyToggle=NSButton(checkboxWithTitle:"Spotify on Hover",target:nil,action:nil)
     let spotifyStatus=NSTextField(wrappingLabelWithString:"")
+    let locationPicker=NSPopUpButton(frame:.zero,pullsDown:false)
     let sizeButton=NSButton(title:"Size…",target:nil,action:nil)
     init(actions:Actions) {
         self.actions=actions
-        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:390,height:370),styleMask:[.titled,.closable],backing:.buffered,defer:false)
+        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:410,height:430),styleMask:[.titled,.closable],backing:.buffered,defer:false)
         window.title="Mnemo Settings";window.isReleasedWhenClosed=false
         super.init(window:window)
         window.delegate=self;window.center()
@@ -35,12 +37,16 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
         for (title,value) in [("Auto","auto"),("White","white"),("Lavender","lavender")] {
             colourPicker.addItem(withTitle:title);colourPicker.lastItem?.representedObject=value
         }
+        for value in ["Home","Work","Both"] { locationPicker.addItem(withTitle:value);locationPicker.lastItem?.representedObject=value }
+        locationPicker.setAccessibilityLabel("Use Mnemo at")
+        locationPicker.target=self;locationPicker.action=#selector(changeLocation)
         colourPicker.setAccessibilityLabel("Companion colour")
         loginStatus.textColor = .secondaryLabelColor;loginStatus.maximumNumberOfLines=2
         let appearance=NSStackView(views:[NSTextField(labelWithString:"Colour"),colourPicker,sizeButton])
         appearance.orientation = .horizontal;appearance.spacing=10
+        let location=NSStackView(views:[NSTextField(labelWithString:"Use Mnemo at"),locationPicker]);location.orientation = .horizontal;location.spacing=12
         let separator=NSBox();separator.boxType = .separator
-        let stack=NSStackView(views:[dockToggle,loginToggle,loginStatus,loginSettingsButton,separator,appearance,spotifyToggle,spotifyStatus])
+        let stack=NSStackView(views:[location,dockToggle,loginToggle,loginStatus,loginSettingsButton,separator,appearance,spotifyToggle,spotifyStatus])
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=12;stack.detachesHiddenViews=true
         let content=window.contentView!;content.addSubview(stack);stack.translatesAutoresizingMaskIntoConstraints=false
         NSLayoutConstraint.activate([
@@ -65,6 +71,10 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
         loginSettingsButton.isHidden=message == nil && login != .requiresApproval
         if let item=colourPicker.itemArray.first(where:{$0.representedObject as? String == colour}) { colourPicker.select(item) }
     }
+    func updateLocation(_ value:String) {
+        if let item=locationPicker.itemArray.first(where:{$0.representedObject as? String == value}) { locationPicker.select(item) }
+    }
+    @objc private func changeLocation() { if let value=locationPicker.selectedItem?.representedObject as? String { actions.location(value) } }
     func updateSpotify(enabled:Bool,status:String?) {
         spotifyToggle.state=enabled ? .on:.off;spotifyStatus.stringValue=status ?? "";spotifyStatus.isHidden=status == nil
     }

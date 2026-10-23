@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {startReminders} from '../reminders.mjs';
 const elements=new Map(),handlers={},timers=new Map();let serial=0,shown,hidden=0;
-function element(){return {value:'',hidden:false,disabled:false,textContent:'',style:{},attrs:{},children:[],classList:{add(){},remove(){}},append(...nodes){this.children.push(...nodes)},replaceChildren(){this.children=[]},setAttribute(k,v){this.attrs[k]=v},focus(){this.focused=true},reset(){},setPointerCapture(){},getBoundingClientRect(){return {left:0,top:0,width:176,height:176}}}}
+function element(){return {value:'',hidden:false,disabled:false,textContent:'',style:{},attrs:{},children:[],classList:{add(){},remove(){}},append(...nodes){this.children.push(...nodes)},insertAdjacentElement(){},replaceChildren(){this.children=[]},setAttribute(k,v){this.attrs[k]=v},focus(){this.focused=true},reset(){},setPointerCapture(){},getBoundingClientRect(){return {left:0,top:0,width:176,height:176}}}}
 function get(id){if(!elements.has(id))elements.set(id,element());return elements.get(id)}
 globalThis.document={createElement:element,getElementById:get,body:{append(){},classList:{add(){}}}};
 globalThis.setTimeout=(fn,delay)=>{timers.set(++serial,{fn,delay});return serial};globalThis.clearTimeout=id=>timers.delete(id);
@@ -60,3 +60,11 @@ for(let i=0;i<100;i++){
 get('reminder-text').value='My draft';const draftPrompt=get('reminder-text').placeholder;
 handlers['mnemo-new-reminder']();assert.equal(get('reminder-text').value,'My draft');assert.equal(get('reminder-text').placeholder,draftPrompt);
 console.log('PASS: new reminder prompts rotate without replacing a draft');
+
+get('mode-date').onclick();
+const calendarDay=get('picker-days').children[0],minuteWheel=get('minute-wheel');
+minuteWheel.scrollTop=9*36+10;minuteWheel.onscroll();
+assert.equal(minuteWheel.scrollTop,334,'Scrolling never repositions the active wheel mid-gesture');
+assert.equal(get('picker-days').children[0],calendarDay,'Wheel updates do not rebuild the calendar');
+minuteWheel.onscrollend();assert.equal(minuteWheel.scrollTop,324,'Wheel settles to a whole minute after scrolling ends');
+console.log('PASS: time-wheel momentum keeps its position and avoids calendar rebuilds');

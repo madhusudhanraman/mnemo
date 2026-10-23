@@ -7,6 +7,7 @@ struct Reminder: Codable {
     var status: String
     var createdAt: Double
     var projectID: String? = nil
+    var notes: String? = nil
 }
 struct MnemoProject: Codable {
     var id: String
@@ -66,18 +67,21 @@ final class ReminderStore {
         } else { rows.append(MnemoProject(id:UUID().uuidString,name:value,space:space,createdAt:now)) }
         try commit(reminders,projects:rows)
     }
-    func save(id:String?,text:String,dueAt:Double?,projectID:String?=nil,now:Double=Date().timeIntervalSince1970*1000) throws {
+    func save(id:String?,text:String,dueAt:Double?,projectID:String?=nil,notes:String?=nil,now:Double=Date().timeIntervalSince1970*1000) throws {
         let value=text.trimmingCharacters(in:.whitespacesAndNewlines)
         guard !value.isEmpty,value.count<=280 else { throw ReminderError.invalid("Use between 1 and 280 characters for a reminder.") }
         if let projectID=projectID { guard projects.contains(where:{$0.id==projectID}) else { throw ReminderError.invalid("That project no longer exists.") } }
         if let dueAt=dueAt { guard dueAt.isFinite,dueAt>now else { throw ReminderError.invalid("Choose a reminder time in the future.") } }
         else if projectID == nil { throw ReminderError.invalid("Choose a reminder time, or add this task to a project.") }
+        let note=notes?.trimmingCharacters(in:.whitespacesAndNewlines)
+        guard (note?.count ?? 0)<=10000 else { throw ReminderError.invalid("Keep notes within 10,000 characters.") }
+        let savedNote=note?.isEmpty == false ? note:nil
         let status=dueAt == nil ? "task":"pending"
         var rows=reminders
         if let id=id {
             guard let index=rows.firstIndex(where:{$0.id==id}) else { throw ReminderError.invalid("That reminder no longer exists.") }
-            rows[index].text=value;rows[index].dueAt=dueAt;rows[index].status=status;rows[index].projectID=projectID
-        } else { rows.append(Reminder(id:UUID().uuidString,text:value,dueAt:dueAt,status:status,createdAt:now,projectID:projectID)) }
+            rows[index].text=value;rows[index].dueAt=dueAt;rows[index].status=status;rows[index].projectID=projectID;rows[index].notes=savedNote
+        } else { rows.append(Reminder(id:UUID().uuidString,text:value,dueAt:dueAt,status:status,createdAt:now,projectID:projectID,notes:savedNote)) }
         try commit(rows)
     }
     func action(id:String,action:String,now:Double=Date().timeIntervalSince1970*1000) throws {

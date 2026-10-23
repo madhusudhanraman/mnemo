@@ -66,3 +66,15 @@ try Data("invalid-json".utf8).write(to:file)
 do { _=try ReminderStore(url:file);fatalError("Corruption must not silently reset") } catch {}
 check(try String(contentsOf:file,encoding:.utf8)=="invalid-json","Preserve corrupt original")
 print("PASS: persistence, validation, exact deadline, no duplicate firing, snooze, wake catch-up, edit, completion, delete and corruption preservation.")
+
+let notesURL=directory.appendingPathComponent("notes.json")
+let notesStore=try ReminderStore(url:notesURL)
+try notesStore.save(id:nil,text:"A task with notes",dueAt:2000,notes:"First line\n<plain text>",now:1000)
+let notesID=notesStore.reminders[0].id
+check(try ReminderStore(url:notesURL).reminders[0].notes=="First line\n<plain text>","Notes survive reload")
+try notesStore.action(id:notesID,action:"done",now:1001)
+check(notesStore.reminders[0].notes=="First line\n<plain text>","Completing preserves notes")
+try notesStore.save(id:notesID,text:"A task with notes",dueAt:3000,notes:"",now:1001)
+check(try ReminderStore(url:notesURL).reminders[0].notes==nil,"Notes can be removed")
+do { try notesStore.save(id:nil,text:"Too long",dueAt:4000,notes:String(repeating:"x",count:10001),now:1000);fatalError("Oversize notes accepted") } catch is ReminderError {}
+print("PASS: optional notes persist, survive completion, clear and enforce the length limit")
