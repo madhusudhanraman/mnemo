@@ -32,8 +32,8 @@ delegate.stopMouseTracking()
 assert(originalMenu.items.contains(where:{$0.action == #selector(AppDelegate.showSettings)}))
 let dock=delegate.applicationDockMenu(app)!
 assert(dock.delegate === delegate && dock.items.count==2)
-var dockChange:Bool?,loginClicks=0,sizeClicks=0,chosenColour=""
-let settings=MnemoSettingsController(actions:.init(dock:{dockChange=$0},login:{loginClicks+=1},size:{sizeClicks+=1},colour:{chosenColour=$0},loginSettings:{},refresh:{}))
+var dockChange:Bool?,loginClicks=0,sizeClicks=0,chosenColour="",chosenLocation=""
+let settings=MnemoSettingsController(actions:.init(dock:{dockChange=$0},login:{loginClicks+=1},size:{sizeClicks+=1},colour:{chosenColour=$0},loginSettings:{},refresh:{},location:{chosenLocation=$0}))
 settings.update(showDock:true,login:.requiresApproval,busy:false,message:nil,error:nil,installed:true,colour:"white")
 assert(settings.dockToggle.state == .on && settings.loginToggle.state == .mixed)
 assert(!settings.loginSettingsButton.isHidden && !settings.loginStatus.isHidden)
@@ -47,6 +47,9 @@ settings.update(showDock:false,login:.enabled,busy:true,message:nil,error:nil,in
 assert(settings.dockToggle.state == .off && !settings.loginToggle.isEnabled)
 settings.update(showDock:true,login:.enabled,busy:false,message:nil,error:nil,installed:true,colour:"white")
 assert(settings.loginToggle.isEnabled && settings.loginStatus.isHidden && settings.loginSettingsButton.isHidden)
+settings.updateLocation("Work");assert(settings.locationPicker.selectedItem?.representedObject as? String == "Work")
+settings.locationPicker.selectItem(at:0);app.sendAction(settings.locationPicker.action!,to:settings.locationPicker.target,from:settings.locationPicker)
+assert(chosenLocation=="Home")
 settings.close()
 NSStatusBar.system.removeStatusItem(originalStatus)
 print("PASS: compact menus contain quick actions only; menu identity is stable; nested tracking remains active until all menus close; action targets are intact.")

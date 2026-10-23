@@ -28,7 +28,7 @@ export function createSpotifyCaption({desktop,pet,bubble,isReminder,onRegions,on
  function eligible(){return (state.available||state.playing)&&!isReminder()&&!bubble.classList.contains('show')}
  function updateHover(value){
   over=value;clearTimeout(showTimer);clearTimeout(hideTimer);
-  if(value&&eligible()){showTimer=setTimeout(()=>{if(over&&eligible())setVisible(true)},300)}
+  if(value&&eligible()){showTimer=setTimeout(()=>{if(over&&eligible())setVisible(true)},state.playing?300:2000)}
   else hideTimer=setTimeout(()=>{if(!over)setVisible(false)},500);
  }
  caption.inert=true;

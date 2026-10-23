@@ -23,6 +23,11 @@ events['mnemo-spotify']({detail:{available:true,playing:false,title:'Paused trac
 await toggle.onclick();assert.equal(commands.at(-1),'toggle');
 events['mnemo-spotify']({detail:{available:true,playing:true,title:'Playing track'}});assert.ok(toggle.innerHTML.includes('x="10"'));
 caption.events.pointerleave();advance(500);assert.equal(ui.interactive,false);
+events['mnemo-spotify']({detail:{available:true,playing:false,title:'Paused track'}});
+ui.updateHover(true);advance(1999);assert.equal(ui.interactive,false,'Paused music requires a deliberate two-second hover');advance(1);assert.equal(ui.interactive,true);
+caption.events.pointerleave();advance(500);assert.equal(ui.interactive,false);
+ui.updateHover(true);advance(1000);ui.updateHover(false);advance(2000);assert.equal(ui.interactive,false,'Leaving cancels the paused reveal');
+events['mnemo-spotify']({detail:{available:true,playing:true,title:'Playing track'}});
 ui.updateHover(true);reminder=true;ui.sync();advance(300);assert.equal(ui.interactive,false,'Reminder cancels a pending reveal');
 reminder=false;ui.updateHover(true);advance(300);assert.equal(ui.interactive,true);
 events['mnemo-spotify']({detail:{playing:false}});assert.equal(ui.interactive,false,'Stopped playback hides caption');

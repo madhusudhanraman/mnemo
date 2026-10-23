@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         (()=>{let next=0;const pending=new Map();window.mnemoNativeReply=reply=>{const p=pending.get(reply.id);if(!p)return;pending.delete(reply.id);reply.error?p.reject(new Error(reply.error)):p.resolve(reply.result)};
         const call=(method,payload={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.webkit.messageHandlers.mnemo.postMessage({id,method,payload})});
         const send=(method,payload={})=>window.webkit.messageHandlers.mnemo.postMessage({method,payload});
-        window.mnemoDesktop={nativeDrag:true,mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),listProjects:()=>call('listProjects'),saveProject:project=>call('saveProject',project),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifyControl:command=>call('spotifyControl',{command})};
+        window.mnemoDesktop={nativeDrag:true,mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),usageLocation:'\(usageLocation)',preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),listProjects:()=>call('listProjects'),saveProject:project=>call('saveProject',project),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifyControl:command=>call('spotifyControl',{command})};
         window.addEventListener('error',e=>send('scriptError',{message:e.message}));
         })();
         """
@@ -194,6 +194,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         managerWeb?.evaluateJavaScript("window.dispatchEvent(new Event('mnemo-new-reminder'))",completionHandler:nil)
         NSApp.activate(ignoringOtherApps: true); manager?.makeKeyAndOrderFront(nil)
     }
+    var usageLocation:String {
+        let value=UserDefaults.standard.string(forKey:"usageLocation") ?? "Both"
+        return ["Home","Work","Both"].contains(value) ? value:"Both"
+    }
+    func setUsageLocation(_ value:String) {
+        guard ["Home","Work","Both"].contains(value) else { return }
+        UserDefaults.standard.set(value,forKey:"usageLocation")
+        for web in [ghostWeb,managerWeb].compactMap({$0}) {
+            web.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mnemo-location',{detail:'\(value)'}))",completionHandler:nil)
+        }
+        refreshSettings()
+    }
     var showInDock:Bool { UserDefaults.standard.object(forKey:"showInDock") as? Bool ?? true }
     @objc func showSettings() {
         if settingsController == nil {
@@ -208,7 +220,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 refresh:{ [weak self] in self?.refreshLoginItemState() },
                 spotify:{ [weak self] value in
                     UserDefaults.standard.set(value,forKey:"spotifyOnHover");self?.spotify.setEnabled(value);self?.refreshSpotifySettings()
-                }
+                },
+                location:{ [weak self] value in self?.setUsageLocation(value) }
             ))
         }
         refreshLoginItemState();refreshSettings()
@@ -223,6 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     func refreshSettings() {
         refreshSpotifySettings()
+        settingsController?.updateLocation(usageLocation)
         settingsController?.update(showDock:showInDock,login:loginState,busy:loginChangePending,message:loginMessage,error:loginError,installed:AppInstallation.isInstalled,colour:UserDefaults.standard.string(forKey:"ghostColour") ?? "white")
     }
     func setShowInDock(_ visible:Bool) {
@@ -428,7 +442,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 reply(web:web,id:id,result:try JSONSerialization.jsonObject(with:Data(store.projectsJSON().utf8)))
             case "save":
                 guard let text = payload["text"] as? String else { throw ReminderError.invalid("A reminder needs text and a valid time.") }
-                try store.save(id: payload["id"] as? String, text: text, dueAt: payload["dueAt"] as? Double,projectID:payload["projectID"] as? String); changed()
+                try store.save(id: payload["id"] as? String, text: text, dueAt: payload["dueAt"] as? Double,projectID:payload["projectID"] as? String,notes:payload["notes"] as? String); changed()
                 reply(web: web, id: id, result: try JSONSerialization.jsonObject(with: Data(store.json().utf8)))
             case "action":
                 guard let item = payload["id"] as? String, let action = payload["action"] as? String else { throw ReminderError.invalid("Invalid reminder action.") }
