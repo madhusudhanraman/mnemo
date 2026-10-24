@@ -2,7 +2,7 @@
 
 These notes are shared by every coding agent working on this repo (Claude Code reads them through `CLAUDE.md`; Codex reads `AGENTS.md` directly). Keep the instructions tool-neutral.
 
-Mnemo is developed on two Macs (personal and work), coordinated through GitHub. Feature branches only; PRs go into `main`. Never commit or push to `main` directly, and never merge PRs.
+Mnemo is developed on two Macs (personal and work), coordinated through GitHub. Feature branches only; PRs go into `main`. Never commit or push to `main` directly. Merge PRs only when the user explicitly requests it.
 
 ## Current work
 
