@@ -10,6 +10,8 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
         let refresh:()->Void
         var spotify:(Bool)->Void = {_ in}
         var location:(String)->Void = {_ in}
+        var spotifyConnect:(String)->Void = {_ in}
+        var spotifyDisconnect:()->Void = {}
     }
     private let actions:Actions
     let dockToggle=NSButton(checkboxWithTitle:"Show in Dock",target:nil,action:nil)
@@ -18,16 +20,24 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
     let loginSettingsButton=NSButton(title:"Open Login Settings…",target:nil,action:nil)
     let colourPicker=NSPopUpButton(frame:.zero,pullsDown:false)
     let spotifyToggle=NSButton(checkboxWithTitle:"Spotify on Hover",target:nil,action:nil)
+    let spotifyClientID=NSTextField(string:"")
+    let spotifyConnect=NSButton(title:"Connect Spotify…",target:nil,action:nil)
+    let spotifyDisconnect=NSButton(title:"Disconnect",target:nil,action:nil)
+    let spotifyLibraryStatus=NSTextField(wrappingLabelWithString:"")
     let spotifyStatus=NSTextField(wrappingLabelWithString:"")
     let locationPicker=NSPopUpButton(frame:.zero,pullsDown:false)
     let sizeButton=NSButton(title:"Size…",target:nil,action:nil)
     init(actions:Actions) {
         self.actions=actions
-        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:410,height:430),styleMask:[.titled,.closable],backing:.buffered,defer:false)
+        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:410,height:570),styleMask:[.titled,.closable],backing:.buffered,defer:false)
         window.title="Mnemo Settings";window.isReleasedWhenClosed=false
         super.init(window:window)
         window.delegate=self;window.center()
         spotifyToggle.target=self;spotifyToggle.action=#selector(changeSpotify)
+        spotifyClientID.placeholderString="Spotify Client ID";spotifyClientID.setAccessibilityLabel("Spotify Client ID")
+        spotifyConnect.target=self;spotifyConnect.action=#selector(connectSpotify)
+        spotifyDisconnect.target=self;spotifyDisconnect.action=#selector(disconnectSpotify)
+        spotifyLibraryStatus.textColor = .secondaryLabelColor;spotifyLibraryStatus.maximumNumberOfLines=4
         spotifyStatus.textColor = .secondaryLabelColor;spotifyStatus.maximumNumberOfLines=3;spotifyStatus.isHidden=true
         dockToggle.target=self;dockToggle.action=#selector(changeDock)
         loginToggle.target=self;loginToggle.action=#selector(changeLogin);loginToggle.allowsMixedState=true
@@ -46,7 +56,8 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
         appearance.orientation = .horizontal;appearance.spacing=10
         let location=NSStackView(views:[NSTextField(labelWithString:"Use Mnemo at"),locationPicker]);location.orientation = .horizontal;location.spacing=12
         let separator=NSBox();separator.boxType = .separator
-        let stack=NSStackView(views:[location,dockToggle,loginToggle,loginStatus,loginSettingsButton,separator,appearance,spotifyToggle,spotifyStatus])
+        let libraryActions=NSStackView(views:[spotifyConnect,spotifyDisconnect]);libraryActions.orientation = .horizontal;libraryActions.spacing=8
+        let stack=NSStackView(views:[location,dockToggle,loginToggle,loginStatus,loginSettingsButton,separator,appearance,spotifyToggle,spotifyStatus,spotifyClientID,libraryActions,spotifyLibraryStatus])
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=12;stack.detachesHiddenViews=true
         let content=window.contentView!;content.addSubview(stack);stack.translatesAutoresizingMaskIntoConstraints=false
         NSLayoutConstraint.activate([
@@ -56,7 +67,9 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
             stack.bottomAnchor.constraint(lessThanOrEqualTo:content.bottomAnchor,constant:-22),
             separator.widthAnchor.constraint(equalTo:stack.widthAnchor),
             loginStatus.widthAnchor.constraint(equalTo:stack.widthAnchor),
-            spotifyStatus.widthAnchor.constraint(equalTo:stack.widthAnchor)
+            spotifyStatus.widthAnchor.constraint(equalTo:stack.widthAnchor),
+            spotifyClientID.widthAnchor.constraint(equalTo:stack.widthAnchor),
+            spotifyLibraryStatus.widthAnchor.constraint(equalTo:stack.widthAnchor)
         ])
         loginStatus.isHidden=true;loginSettingsButton.isHidden=true
     }
@@ -78,6 +91,16 @@ final class MnemoSettingsController:NSWindowController,NSWindowDelegate {
     func updateSpotify(enabled:Bool,status:String?) {
         spotifyToggle.state=enabled ? .on:.off;spotifyStatus.stringValue=status ?? "";spotifyStatus.isHidden=status == nil
     }
+    func updateSpotifyLibrary(clientID:String,connected:Bool,connecting:Bool,status:String?) {
+        if spotifyClientID.currentEditor()==nil { spotifyClientID.stringValue=clientID }
+        spotifyClientID.isEnabled = !connected && !connecting
+        spotifyConnect.isHidden=connected;spotifyConnect.isEnabled = !connecting
+        spotifyConnect.title=connecting ? "Connecting…":"Connect Spotify…"
+        spotifyDisconnect.isHidden = !connected && !connecting
+        spotifyLibraryStatus.stringValue=status ?? (connected ? "Connected for saved songs.":"Connect to like songs. Playback controls work without signing in.")
+    }
+    @objc private func connectSpotify() { actions.spotifyConnect(spotifyClientID.stringValue) }
+    @objc private func disconnectSpotify() { actions.spotifyDisconnect() }
     @objc private func changeSpotify() { actions.spotify(spotifyToggle.state == .on) }
     func windowDidBecomeKey(_ notification:Notification) { actions.refresh() }
     @objc private func changeDock() { actions.dock(dockToggle.state == .on) }

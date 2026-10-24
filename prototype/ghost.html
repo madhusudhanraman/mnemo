@@ -88,6 +88,7 @@ input,select{font:inherit;color:inherit;background:#191825;border:1px solid #4c4
 
 .project-list-actions{display:flex;justify-content:flex-end;margin:0 0 8px}
 
+.spotify-feedback{font-size:11px;color:#594577;max-width:200px;overflow-wrap:anywhere}#spotify-caption .spotify-controls{gap:5px}
 </style>
 <main><small>MNEMO / A LITTLE SPIRIT</small><h1>A little presence.<br>A gentle reminder.</h1><p>Soft fabric, a rippling hem, and the occasional happy spin. Drag your companion anywhere.</p><div><button id="remind">My reminders</button></div></main>
 <div id="pet" role="button" tabindex="0" aria-label="Mnemo — add a reminder" title="Click to add a reminder · drag to move"><canvas id="art" width="640" height="640" aria-hidden="true" style="width:100%;height:100%"></canvas></div><div id="bubble" role="status">A gentle nudge: take a little stretch.</div><footer>3D prototype · drag to move · Shift + drag to turn · click Mnemo to add a reminder</footer>
@@ -54960,13 +54961,23 @@ function createSpotifyCaption({desktop,pet,bubble,isReminder,onRegions,onHover=(
   button.onclick=async()=>{buttons.forEach(b=>b.disabled=true);try{await desktop?.spotifyControl?.(command);button.title=command==='toggle'?(state.playing?'Pause Spotify':'Play Spotify'):label}catch(error){button.title=error.message}finally{buttons.forEach(b=>b.disabled=false)}};
   buttons.push(button);controls.append(button);
  }
- track.append(title,artist);caption.append(track,controls);document.body.append(caption);
+ const like=document.createElement('button');like.type='button';like.setAttribute('aria-label','Save Spotify song');
+ const feedback=document.createElement('div');feedback.className='spotify-feedback';feedback.setAttribute('role','status');feedback.hidden=true;
+ let liking=false;
+ function renderLike(){
+  const saved=state.liked===true;like.disabled=liking||!state.canLike;like.setAttribute('aria-pressed',String(saved));
+  like.title=!state.canLike?'This item cannot be saved':!state.libraryConnected?'Connect Spotify to save songs':saved?'Remove from Liked Songs':'Add to Liked Songs';like.setAttribute('aria-label',like.title);
+  like.innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="${saved?'currentColor':'none'}" stroke="currentColor" stroke-width="1.8" aria-hidden="true" style="vertical-align:middle"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>`;
+ }
+ like.onclick=async()=>{if(liking||!state.canLike)return;liking=true;renderLike();feedback.hidden=true;try{const result=await desktop?.spotifyLike?.(state.uri);if(result?.needsConnection){feedback.textContent='Connect Spotify in Settings.';feedback.hidden=false}}catch(error){feedback.textContent=error.message;feedback.hidden=false}finally{liking=false;renderLike()}};
+ controls.append(like);
+ track.append(title,artist);caption.append(track,controls,feedback);document.body.append(caption);
  let state={playing:false},over=false,showTimer,hideTimer,visible=false;
  function setVisible(value){visible=value;caption.classList.toggle('show',value);caption.inert=!value;onRegions()}
  function eligible(){return (state.available||state.playing)&&!isReminder()&&!bubble.classList.contains('show')}
  function updateHover(value){
   over=value;clearTimeout(showTimer);clearTimeout(hideTimer);
-  if(value&&eligible()){showTimer=setTimeout(()=>{if(over&&eligible())setVisible(true)},state.playing?300:2000)}
+  if(value&&eligible()){showTimer=setTimeout(()=>{if(over&&eligible())setVisible(true)},state.playing?300:1000)}
   else hideTimer=setTimeout(()=>{if(!over)setVisible(false)},500);
  }
  caption.inert=true;
@@ -54978,7 +54989,7 @@ function createSpotifyCaption({desktop,pet,bubble,isReminder,onRegions,onHover=(
  window.addEventListener('mnemo-spotify',event=>{
   state=event.detail||{playing:false};title.textContent=String(state.title||'');artist.textContent=String(state.artist||'');
   drawControl(buttons[1],state.playing?'pause':'play');buttons[1].title=state.playing?'Pause Spotify':'Play Spotify';buttons[1].setAttribute('aria-label',buttons[1].title);
-  track.title=[state.title,state.artist].filter(Boolean).join(' — ');
+  track.title=[state.title,state.artist].filter(Boolean).join(' — ');renderLike();
   if(!eligible())setVisible(false);else if(over&&!visible)updateHover(true);
  });
  function sync(){if(!eligible()){clearTimeout(showTimer);setVisible(false)}}
@@ -55006,17 +55017,17 @@ function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
 
  <p id="reminder-message" role="status"></p>
  <div class="list-heading"><h3 id="list-title">Upcoming</h3><span id="reminder-count"></span></div><div id="reminder-list"></div><details id="completed-reminders"><summary>Completed</summary><div id="completed-list"></div></details>
- <form id="reminder-form" class="thought-form"><label id="reminder-text-label" for="reminder-text">Remind me to...</label><input id="reminder-text" name="text" placeholder="" maxlength="280" required autocomplete="off"><div id="reminder-notes" class="item-notes"><label for="reminder-note">Notes</label><textarea id="reminder-note" rows="3" maxlength="10000" placeholder="Details, links, things to remember…"></textarea></div><button id="task-reminder" type="button" hidden>+ Reminder</button><div id="reminder-schedule"><div class="schedule-modes"><button id="mode-days" type="button" aria-pressed="true">Days</button><button id="mode-date" type="button" aria-pressed="false">Date & Time</button></div><div id="days-controls" class="day-row"><span>in</span><input id="reminder-days" type="number" min="1" max="3650" step="1" value="2" aria-label="Days until reminder" required><span>days</span></div><select id="reminder-time" hidden><option value="days">Days</option><option value="custom">Custom</option></select><input id="reminder-when" type="hidden"><div id="date-controls" hidden><div class="picker-tabs"><button id="show-calendar" type="button" aria-pressed="true">Date</button><button id="show-clock" type="button" aria-pressed="false">Time</button></div><div id="calendar-pane"><div class="month-nav"><button id="month-prev" type="button" aria-label="Previous month">‹</button><span id="picker-month"></span><button id="month-next" type="button" aria-label="Next month">›</button></div><div class="weekdays" aria-hidden="true"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div><div id="picker-days"></div></div><div id="clock-pane" hidden><div class="time-wheels"><div id="hour-wheel" class="time-wheel" role="listbox" tabindex="0" aria-label="Hour"></div><span class="wheel-colon" aria-hidden="true">:</span><div id="minute-wheel" class="time-wheel" role="listbox" tabindex="0" aria-label="Minute"></div><div class="period-picker"><button id="dial-am" type="button">AM</button><button id="dial-pm" type="button">PM</button></div></div></div><p id="date-summary" aria-live="polite"></p></div></div><div class="form-bottom"><button id="save-reminder" type="submit" class="primary" aria-label="Save reminder">✓</button></div><button id="cancel-edit" type="button" hidden>Cancel edit</button></form></div>
+ <form id="reminder-form" class="thought-form"><label id="reminder-text-label" for="reminder-text">Remind me to...</label><input id="reminder-text" name="text" placeholder="" maxlength="280" required autocomplete="off"><div id="reminder-notes" class="item-notes"><label for="reminder-note">Notes</label><textarea id="reminder-note" rows="3" maxlength="10000" placeholder="Details, links, things to remember."></textarea></div><button id="task-reminder" type="button" hidden>+ Reminder</button><div id="reminder-schedule"><div class="schedule-modes"><button id="mode-days" type="button" aria-pressed="true">Days</button><button id="mode-date" type="button" aria-pressed="false">Date & Time</button></div><div id="days-controls" class="day-row"><span>in</span><input id="reminder-days" type="number" min="1" max="3650" step="1" value="2" aria-label="Days until reminder" required><span>days</span></div><select id="reminder-time" hidden><option value="days">Days</option><option value="custom">Custom</option></select><input id="reminder-when" type="hidden"><div id="date-controls" hidden><div class="picker-tabs"><button id="show-calendar" type="button" aria-pressed="true">Date</button><button id="show-clock" type="button" aria-pressed="false">Time</button></div><div id="calendar-pane"><div class="month-nav"><button id="month-prev" type="button" aria-label="Previous month">‹</button><span id="picker-month"></span><button id="month-next" type="button" aria-label="Next month">›</button></div><div class="weekdays" aria-hidden="true"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div><div id="picker-days"></div></div><div id="clock-pane" hidden><div class="time-wheels"><div id="hour-wheel" class="time-wheel" role="listbox" tabindex="0" aria-label="Hour"></div><span class="wheel-colon" aria-hidden="true">:</span><div id="minute-wheel" class="time-wheel" role="listbox" tabindex="0" aria-label="Minute"></div><div class="period-picker"><button id="dial-am" type="button">AM</button><button id="dial-pm" type="button">PM</button></div></div></div><p id="date-summary" aria-live="polite"></p></div></div><div class="form-bottom"><button id="save-reminder" type="submit" class="primary" aria-label="Save reminder">✓</button></div><button id="cancel-edit" type="button" hidden>Cancel edit</button></form></div>
 `;
  document.body.append(root);
  const $=id=>document.getElementById(id),form=$('reminder-form'),text=$('reminder-text'),when=$('reminder-when'),message=$('reminder-message');
  const sillyPrompts=[
-  "Invade Berlin…",
-  "Knock over a casino…",
-  "Move skeletons to a bigger closet…",
-  "Embark on a fool’s errand…",
-  "Schedule a wild goose chase…",
-  "Check whether a ransom is tax-deductible…"
+  "Invade Berlin.",
+  "Knock over a casino.",
+  "Move skeletons to a bigger closet.",
+  "Embark on a fool’s errand.",
+  "Schedule a wild goose chase.",
+  "Check whether a ransom is tax-deductible."
 ];
  window.addEventListener('mnemo-new-reminder',()=>{if(!editing&&!text.value.trim())freshPrompt()});
  function freshPrompt(){const choices=sillyPrompts.filter(prompt=>prompt!==text.placeholder);text.placeholder=choices[Math.floor(Math.random()*choices.length)]}

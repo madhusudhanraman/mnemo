@@ -1,62 +1,29 @@
 # Mnemo
 
-A small ghost for your Mac. He lingers nearby and carries reminders in thought bubbles.
+A little ghost for your Mac who keeps your reminders company.
 
-Click Mnemo to add a reminder. Drag him to move. Choose his size and colour from the menu bar.
+![Mnemo](docs/media/mnemo.png)
 
-## A little company
+- **Reminders:** click Mnemo to add one, in days or at a specific date and time. Due reminders appear as thought bubbles and stay until you choose **Done** or **Remind Me Later** (three hours). Multiple reminders form a queue—no macOS notification banners.
+- **Projects:** organise tasks into Home and Work projects, add notes, and choose which projects appear on each Mac.
+- **Spotify:** hover to see the current song, play/pause, skip or go back. The heart saves or removes songs from Liked Songs after a one-time [Spotify connection](docs/spotify.md#liked-songs).
+- **A quiet companion:** Mnemo drifts, tilts, pirouettes and plays peekaboo. He settles when the Mac is idle and flutters when you finish a reminder.
+- **Make him yours:** drag to move, adjust size and colour, and choose Launch at Login or whether to show him in the Dock. Auto colour adapts to the background.
 
-| Linger | Sleepy Drift | Curious Tilt |
-| :---: | :---: | :---: |
-| ![Mnemo gently swaying](docs/media/linger.gif) | ![Mnemo settling into sleepy drift](docs/media/sleepy.gif) | ![Mnemo tilting curiously](docs/media/curious.gif) |
-
-| Whirl Flutter | Peekaboo |
-| :---: | :---: |
-| ![A spiral flutter through Mnemo’s sheet](docs/media/flutter.gif) | ![Mnemo fading away and returning, leaving his eyes visible](docs/media/peekaboo.gif) |
-
-*Model renders using the production geometry and behaviour curves; lighting approximates the app. Gestures are shown on demand here and occur less often on the desktop.*
-
-## Reminders
-
-Set a reminder in days, or choose a date and time. When it is due, Mnemo glows and spins, then shows a thought bubble that stays until you respond.
-
-- **Done** completes it with a Whirl Flutter.
-- **Remind Me Later** postpones it by three hours.
-- Multiple reminders queue in deadline order.
-
-No macOS notification banners. Reminders are saved locally and catch up after sleep or relaunch. Mnemo must be running. Enable **Launch at Login** in the menu if you want him to start quietly when you sign in.
+Reminders and projects stay on this Mac; there is no cross-Mac sync. Mnemo must be running to show reminders and catches up after sleep or relaunch. Auto colour needs Screen Recording permission; background samples are never saved or sent. Spotify playback uses macOS Automation permission; Liked Songs uses Spotify sign-in with credentials stored in Keychain.
 
 ## Build and run
 
-Requires macOS, Apple Command Line Tools and Node.js. No npm install is needed.
+Requires macOS, Apple Command Line Tools and Node.js. No npm install needed.
 
 ```sh
 node prototype/build.mjs
 sh desktop/build.sh
-# Quit any running Mnemo, then install:
+# Quit Mnemo before installing:
 sh desktop/install.sh
 open ~/Applications/Mnemo.app
 ```
 
-This is a development build, not a notarised release. For stable Screen Recording permission across rebuilds, configure a signing identity as described in [desktop development](desktop/README.md).
-
-Auto colour adjusts to the background and needs Screen Recording permission. Samples stay in memory and are never saved or sent. Manual White and Lavender colours need no screen access.
-
-## Development
-
-- [Desktop app and resource limits](desktop/README.md)
-- [Browser prototypes and visual previews](prototype/README.md)
-- [Recreate the GIFs](docs/media/README.md)
-
-Checks use disposable data:
-
-```sh
-for check in prototype/review/check-*.mjs; do node "$check"; done
-swiftc -swift-version 5 -module-cache-path /tmp/mnemo-swift-cache \
-  desktop/Sources/ReminderStore.swift desktop/tests/main.swift -o /tmp/mnemo-store-tests
-/tmp/mnemo-store-tests
-```
-
-During the first week, watch for missed or duplicate reminders, sleep/wake behaviour, smooth transitions, background contrast, and CPU use while idle. Please include the macOS version and steps to reproduce when reporting a problem.
+This is a development build, not a notarised release. See [desktop setup](desktop/README.md) for signing and permissions, [prototypes](prototype/README.md) for previews, and [performance notes](docs/performance.md) for resource behaviour.
 
 Three.js is vendored under its [MIT license](prototype/vendor/LICENSE).

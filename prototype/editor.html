@@ -83,6 +83,7 @@ input,select{font:inherit;color:inherit;background:#191825;border:1px solid #4c4
 
 .project-list-actions{display:flex;justify-content:flex-end;margin:0 0 8px}
 
+.spotify-feedback{font-size:11px;color:#594577;max-width:200px;overflow-wrap:anywhere}#spotify-caption .spotify-controls{gap:5px}
 </style><body class="manager-mode"><button id="remind" hidden>Reminders</button><script type="module">// Shared UI for the local prototype and native macOS app.
 function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
  const native=window.mnemoDesktop;
@@ -96,17 +97,17 @@ function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
 
  <p id="reminder-message" role="status"></p>
  <div class="list-heading"><h3 id="list-title">Upcoming</h3><span id="reminder-count"></span></div><div id="reminder-list"></div><details id="completed-reminders"><summary>Completed</summary><div id="completed-list"></div></details>
- <form id="reminder-form" class="thought-form"><label id="reminder-text-label" for="reminder-text">Remind me to...</label><input id="reminder-text" name="text" placeholder="" maxlength="280" required autocomplete="off"><div id="reminder-notes" class="item-notes"><label for="reminder-note">Notes</label><textarea id="reminder-note" rows="3" maxlength="10000" placeholder="Details, links, things to remember…"></textarea></div><button id="task-reminder" type="button" hidden>+ Reminder</button><div id="reminder-schedule"><div class="schedule-modes"><button id="mode-days" type="button" aria-pressed="true">Days</button><button id="mode-date" type="button" aria-pressed="false">Date & Time</button></div><div id="days-controls" class="day-row"><span>in</span><input id="reminder-days" type="number" min="1" max="3650" step="1" value="2" aria-label="Days until reminder" required><span>days</span></div><select id="reminder-time" hidden><option value="days">Days</option><option value="custom">Custom</option></select><input id="reminder-when" type="hidden"><div id="date-controls" hidden><div class="picker-tabs"><button id="show-calendar" type="button" aria-pressed="true">Date</button><button id="show-clock" type="button" aria-pressed="false">Time</button></div><div id="calendar-pane"><div class="month-nav"><button id="month-prev" type="button" aria-label="Previous month">‹</button><span id="picker-month"></span><button id="month-next" type="button" aria-label="Next month">›</button></div><div class="weekdays" aria-hidden="true"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div><div id="picker-days"></div></div><div id="clock-pane" hidden><div class="time-wheels"><div id="hour-wheel" class="time-wheel" role="listbox" tabindex="0" aria-label="Hour"></div><span class="wheel-colon" aria-hidden="true">:</span><div id="minute-wheel" class="time-wheel" role="listbox" tabindex="0" aria-label="Minute"></div><div class="period-picker"><button id="dial-am" type="button">AM</button><button id="dial-pm" type="button">PM</button></div></div></div><p id="date-summary" aria-live="polite"></p></div></div><div class="form-bottom"><button id="save-reminder" type="submit" class="primary" aria-label="Save reminder">✓</button></div><button id="cancel-edit" type="button" hidden>Cancel edit</button></form></div>
+ <form id="reminder-form" class="thought-form"><label id="reminder-text-label" for="reminder-text">Remind me to...</label><input id="reminder-text" name="text" placeholder="" maxlength="280" required autocomplete="off"><div id="reminder-notes" class="item-notes"><label for="reminder-note">Notes</label><textarea id="reminder-note" rows="3" maxlength="10000" placeholder="Details, links, things to remember."></textarea></div><button id="task-reminder" type="button" hidden>+ Reminder</button><div id="reminder-schedule"><div class="schedule-modes"><button id="mode-days" type="button" aria-pressed="true">Days</button><button id="mode-date" type="button" aria-pressed="false">Date & Time</button></div><div id="days-controls" class="day-row"><span>in</span><input id="reminder-days" type="number" min="1" max="3650" step="1" value="2" aria-label="Days until reminder" required><span>days</span></div><select id="reminder-time" hidden><option value="days">Days</option><option value="custom">Custom</option></select><input id="reminder-when" type="hidden"><div id="date-controls" hidden><div class="picker-tabs"><button id="show-calendar" type="button" aria-pressed="true">Date</button><button id="show-clock" type="button" aria-pressed="false">Time</button></div><div id="calendar-pane"><div class="month-nav"><button id="month-prev" type="button" aria-label="Previous month">‹</button><span id="picker-month"></span><button id="month-next" type="button" aria-label="Next month">›</button></div><div class="weekdays" aria-hidden="true"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div><div id="picker-days"></div></div><div id="clock-pane" hidden><div class="time-wheels"><div id="hour-wheel" class="time-wheel" role="listbox" tabindex="0" aria-label="Hour"></div><span class="wheel-colon" aria-hidden="true">:</span><div id="minute-wheel" class="time-wheel" role="listbox" tabindex="0" aria-label="Minute"></div><div class="period-picker"><button id="dial-am" type="button">AM</button><button id="dial-pm" type="button">PM</button></div></div></div><p id="date-summary" aria-live="polite"></p></div></div><div class="form-bottom"><button id="save-reminder" type="submit" class="primary" aria-label="Save reminder">✓</button></div><button id="cancel-edit" type="button" hidden>Cancel edit</button></form></div>
 `;
  document.body.append(root);
  const $=id=>document.getElementById(id),form=$('reminder-form'),text=$('reminder-text'),when=$('reminder-when'),message=$('reminder-message');
  const sillyPrompts=[
-  "Invade Berlin…",
-  "Knock over a casino…",
-  "Move skeletons to a bigger closet…",
-  "Embark on a fool’s errand…",
-  "Schedule a wild goose chase…",
-  "Check whether a ransom is tax-deductible…"
+  "Invade Berlin.",
+  "Knock over a casino.",
+  "Move skeletons to a bigger closet.",
+  "Embark on a fool’s errand.",
+  "Schedule a wild goose chase.",
+  "Check whether a ransom is tax-deductible."
 ];
  window.addEventListener('mnemo-new-reminder',()=>{if(!editing&&!text.value.trim())freshPrompt()});
  function freshPrompt(){const choices=sillyPrompts.filter(prompt=>prompt!==text.placeholder);text.placeholder=choices[Math.floor(Math.random()*choices.length)]}

@@ -53,7 +53,7 @@ get('reminder-text').value='';
 for(let i=0;i<100;i++){
  const previous=get('reminder-text').placeholder;
  handlers['mnemo-new-reminder']();
- assert.ok(get('reminder-text').placeholder.endsWith('…'));
+ assert.ok(/[^.]\.$/.test(get('reminder-text').placeholder));
  assert.notEqual(get('reminder-text').placeholder,previous,'Fresh prompts avoid consecutive repeats');
  assert.equal(get('reminder-text').value,'','A prompt is never actual reminder text');
 }
