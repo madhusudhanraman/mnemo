@@ -2,17 +2,17 @@ import assert from 'node:assert/strict';
 import {createSpotifyCaption} from '../spotify-caption.mjs';
 class Element {
  constructor(){this.events={};this.children=[];this.style={};this.offsetHeight=48;this.classes=new Set();this.classList={contains:x=>this.classes.has(x),toggle:(x,on)=>on?this.classes.add(x):this.classes.delete(x)}}
- setAttribute(){} append(...items){this.children.push(...items)} addEventListener(name,fn){this.events[name]=fn} contains(x){return this.children.includes(x)}
+ setAttribute(name,value){(this.attributes??={})[name]=value} append(...items){this.children.push(...items)} addEventListener(name,fn){this.events[name]=fn} contains(x){return this.children.includes(x)}
 }
 let now=0,id=0;const timers=new Map(),events={};
 globalThis.setTimeout=(fn,delay)=>{timers.set(++id,{fn,at:now+delay});return id};globalThis.clearTimeout=id=>timers.delete(id);
 function advance(ms){now+=ms;for(const [id,t] of [...timers])if(t.at<=now){timers.delete(id);t.fn()}}
 globalThis.innerWidth=320;globalThis.innerHeight=440;
 globalThis.document={createElement:()=>new Element(),body:new Element()};globalThis.window={addEventListener:(name,fn)=>events[name]=fn};
-let reminder=false,commands=[],reports=0;const bubble=new Element(),pet=new Element();
-const ui=createSpotifyCaption({desktop:{spotifyControl:async command=>commands.push(command)},pet,bubble,isReminder:()=>reminder,onRegions:()=>reports++});
+let reminder=false,commands=[],reports=0,likedURIs=[];const bubble=new Element(),pet=new Element();
+const ui=createSpotifyCaption({desktop:{spotifyControl:async command=>commands.push(command),spotifyLike:async uri=>{likedURIs.push(uri);return {}}},pet,bubble,isReminder:()=>reminder,onRegions:()=>reports++});
 const caption=ui.element,[track,controls]=caption.children;
-const [previous,toggle,next]=controls.children;
+const [previous,toggle,next,like]=controls.children;
 events['mnemo-spotify']({detail:{playing:true,title:'<unsafe track>',artist:'Artist'}});
 assert.equal(track.children[0].textContent,'<unsafe track>','Track is text, never HTML');
 assert.equal(ui.interactive,false,'Hidden without hover');
@@ -24,7 +24,7 @@ await toggle.onclick();assert.equal(commands.at(-1),'toggle');
 events['mnemo-spotify']({detail:{available:true,playing:true,title:'Playing track'}});assert.ok(toggle.innerHTML.includes('x="10"'));
 caption.events.pointerleave();advance(500);assert.equal(ui.interactive,false);
 events['mnemo-spotify']({detail:{available:true,playing:false,title:'Paused track'}});
-ui.updateHover(true);advance(1999);assert.equal(ui.interactive,false,'Paused music requires a deliberate two-second hover');advance(1);assert.equal(ui.interactive,true);
+ui.updateHover(true);advance(999);assert.equal(ui.interactive,false,'Paused music requires a deliberate one-second hover');advance(1);assert.equal(ui.interactive,true);
 caption.events.pointerleave();advance(500);assert.equal(ui.interactive,false);
 ui.updateHover(true);advance(1000);ui.updateHover(false);advance(2000);assert.equal(ui.interactive,false,'Leaving cancels the paused reveal');
 events['mnemo-spotify']({detail:{available:true,playing:true,title:'Playing track'}});
@@ -33,4 +33,9 @@ reminder=false;ui.updateHover(true);advance(300);assert.equal(ui.interactive,tru
 events['mnemo-spotify']({detail:{playing:false}});assert.equal(ui.interactive,false,'Stopped playback hides caption');
 ui.position({left:280,width:100,bottom:430});assert.equal(caption.style.left,'52px');assert.equal(caption.style.top,'331px');
 assert.ok(reports>0,'Visibility updates native hit regions');
+const uri='spotify:track:'+'a'.repeat(22);
+events['mnemo-spotify']({detail:{available:true,playing:true,uri,canLike:true,libraryConnected:true,liked:false}});
+await like.onclick();assert.deepEqual(likedURIs,[uri]);assert.equal(like.attributes['aria-pressed'],'false','No optimistic saved state');
+events['mnemo-spotify']({detail:{available:true,playing:true,uri,canLike:true,libraryConnected:true,liked:true}});assert.equal(like.attributes['aria-pressed'],'true');
+events['mnemo-spotify']({detail:{available:true,playing:true,canLike:false}});assert.equal(like.disabled,true);await like.onclick();assert.equal(likedURIs.length,1,'Unsupported items never trigger a save');
 console.log('PASS: Spotify hover delay, safe text, control handoff, Previous/Play/Pause/Next, reminder priority, pause and viewport bounds');

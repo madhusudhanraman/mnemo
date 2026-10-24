@@ -37,7 +37,7 @@ final class SpotifyPlayback {
         guard let pid=NSRunningApplication.runningApplications(withBundleIdentifier:"com.spotify.client").first?.processIdentifier else { busy=false;completion?("Spotify is not running.");return }
         queue.async { [weak self] in
             var error:NSError?
-            var title="",artist="",playing=false,available=false
+            var title="",artist="",uri="",playing=false,available=false
             do {
                 let target=NSAppleEventDescriptor(processIdentifier:pid)
                 if let descriptor=target.aeDesc {
@@ -60,6 +60,7 @@ final class SpotifyPlayback {
                     title=try Self.send(target:target,property:Self.property("pnam",container:track)).stringValue ?? ""
                     artist=try Self.send(target:target,property:Self.property("pArt",container:track)).stringValue ?? ""
                     available = !title.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty
+                    uri=(try? Self.send(target:target,property:Self.property("ID  ",container:track)))?.stringValue ?? ""
                 }
             } catch let failure as NSError { error=failure }
             let denied=error?.code == -1743
@@ -76,7 +77,7 @@ final class SpotifyPlayback {
                     completion?(denied ? "Allow Mnemo to control Spotify in Automation settings.":"Spotify could not complete the request.")
                 } else {
                     self.onStatus?(nil)
-                    self.onChange?(["playing":playing,"available":available,"title":title,"artist":artist]);completion?(nil)
+                    self.onChange?(["playing":playing,"available":available,"title":title,"artist":artist,"uri":uri]);completion?(nil)
                     if command != nil {
                         DispatchQueue.main.asyncAfter(deadline:.now()+0.4) { [weak self] in
                             guard let self=self,self.enabled,self.generation==token else { return }

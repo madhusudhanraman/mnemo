@@ -2,9 +2,11 @@
 
 These notes are shared by every coding agent working on this repo (Claude Code reads them through `CLAUDE.md`; Codex reads `AGENTS.md` directly). Keep the instructions tool-neutral.
 
-Mnemo is developed on two Macs (personal and work), coordinated through GitHub. Feature branches only; PRs go into `main`. Never commit or push to `main` directly, and never merge PRs.
+Mnemo is developed on two Macs (personal and work), coordinated through GitHub. Feature branches only; PRs go into `main`. Never commit or push to `main` directly. Merge PRs only when the user explicitly requests it.
 
 ## Current work
+
+24 October follow-up on `placeholder-punctuation` adds Spotify Liked Songs through PKCE sign-in and Keychain storage, a heart in the hover caption, a one-second paused hover delay, full stops in example placeholders, and a shorter README with one still image. The signed app is installed and the user confirmed live saving works. See `docs/spotify.md` for setup and validation.
 
 Work/Home projects were merged in PR #4. Follow-up on `tidy-project-list` adds compact project lists, a calmer Avenir Next editor, click-to-rename titles, per-item notes, Home/Work/Both usage settings, time-wheel scrolling improvements, six curated placeholders and a two-second hover delay for paused Spotify. The signed app is installed on this Mac. The user requested publication and a PR merge into main on 23 October 2026. See `docs/projects.md` and `docs/spotify.md` for behavior and validation.
 
