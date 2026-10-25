@@ -55013,7 +55013,7 @@ function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
  <div id="projects-view"><div id="space-tabs" class="space-tabs" aria-label="Project space"><button id="space-work" type="button" aria-pressed="true">Work</button><button id="space-home" type="button" aria-pressed="false">Home</button></div><div class="project-list-actions"><button id="new-project" type="button" aria-label="New project">+ New</button></div><div id="project-list"></div></div>
  <form id="project-form" hidden><label for="project-name">Project name</label><div class="project-add-row"><input id="project-name" maxlength="80" required autocomplete="off"><div class="project-form-actions"><button type="submit">Add</button><button id="cancel-project" type="button">Cancel</button></div></div></form>
  <p id="project-message" role="status"></p>
- <div id="reminder-content"><div id="project-heading" hidden><div class="list-heading"><h3><button id="project-title" type="button" title="Click to rename project"></button></h3></div><form id="project-title-form" hidden><label class="title-edit-label" for="project-title-input">Project name</label><input id="project-title-input" maxlength="80" required autocomplete="off"><div class="title-edit-actions"><button type="submit">Save</button><button id="cancel-title-edit" type="button">Cancel</button></div><p id="project-title-error" role="alert"></p></form></div>
+ <div id="reminder-content"><div id="project-heading" hidden><div class="list-heading"><h3><button id="project-title" type="button" title="Click to rename project"></button></h3><button id="delete-project" type="button">Delete Project</button></div><div id="delete-project-confirm" hidden><p>Delete this project and all its tasks and reminders? This cannot be undone.</p><button id="confirm-delete-project" type="button">Delete Project</button> <button id="cancel-delete-project" type="button">Cancel</button></div><form id="project-title-form" hidden><label class="title-edit-label" for="project-title-input">Project name</label><input id="project-title-input" maxlength="80" required autocomplete="off"><div class="title-edit-actions"><button type="submit">Save</button><button id="cancel-title-edit" type="button">Cancel</button></div><p id="project-title-error" role="alert"></p></form></div>
 
  <p id="reminder-message" role="status"></p>
  <div class="list-heading"><h3 id="list-title">Upcoming</h3><span id="reminder-count"></span></div><div id="reminder-list"></div><details id="completed-reminders"><summary>Completed</summary><div id="completed-list"></div></details>
@@ -55054,6 +55054,7 @@ function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
  const api=native||{
   async list(){let rows;try{rows=JSON.parse(localStorage.getItem(storageKey)||'[]')}catch{throw new Error('Saved reminders could not be read. Your saved data has not been changed.')}if(!Array.isArray(rows))throw new Error('Saved reminder data is invalid.');return rows},
   async listProjects(){const value=JSON.parse(localStorage.getItem(projectStorageKey)||'[]');if(!Array.isArray(value))throw new Error('Saved projects could not be read.');return value},
+  async deleteProject(id){const projects=await this.listProjects(),rows=await this.list();if(!projects.some(p=>p.id===id))throw new Error('That project no longer exists.');localStorage.setItem(storageKey,JSON.stringify(rows.filter(r=>r.projectID!==id)));try{localStorage.setItem(projectStorageKey,JSON.stringify(projects.filter(p=>p.id!==id)))}catch(error){localStorage.setItem(storageKey,JSON.stringify(rows));throw error}},
   async saveProject(item){const rows=await this.listProjects(),name=item.name.trim();if(!name||name.length>80)throw new Error('Enter a project name.');if(rows.some(p=>p.id!==item.id&&p.space===item.space&&p.name.toLowerCase()===name.toLowerCase()))throw new Error('A project with that name already exists here.');const index=rows.findIndex(p=>p.id===item.id);if(index<0)rows.push({...item,name,id:uuid(),createdAt:Date.now()});else rows[index]={...rows[index],...item,name};localStorage.setItem(projectStorageKey,JSON.stringify(rows));return rows},
   async save(item){const rows=await this.list(),index=rows.findIndex(r=>r.id===item.id);const row={...item,id:item.id||uuid(),status:item.dueAt==null?'task':'pending',createdAt:index<0?Date.now():rows[index].createdAt};if(index<0)rows.push(row);else rows[index]=row;localStorage.setItem(storageKey,JSON.stringify(rows));return rows},
   async action({id,action}){const rows=await this.list(),row=rows.find(r=>r.id===id);if(!row)throw new Error('That reminder no longer exists.');if(action==='delete')rows.splice(rows.indexOf(row),1);else if(action==='done')row.status='done';else if(action==='reopen')row.status=row.dueAt==null?'task':row.dueAt<=Date.now()?'due':'pending';else if(action==='snooze'){row.status='pending';row.dueAt=Date.now()+3*60*60000}else throw new Error('Unknown reminder action.');localStorage.setItem(storageKey,JSON.stringify(rows));return rows},
@@ -55112,7 +55113,7 @@ function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
   $('reminder-days').disabled=(!!selectedProject&&!taskHasReminder)||$('reminder-time').value==='custom';
  }
  function navigate(nextView,nextSpace=space,id=null){
-  view=nextView;space=nextSpace;selectedProject=id;renaming=false;reset();$('project-form').hidden=true;$('project-title-form').hidden=true;$('project-title').hidden=false;message.textContent='';$('project-message').textContent='';render();
+  $('delete-project-confirm').hidden=true;view=nextView;space=nextSpace;selectedProject=id;renaming=false;reset();$('project-form').hidden=true;$('project-title-form').hidden=true;$('project-title').hidden=false;message.textContent='';$('project-message').textContent='';render();
  }
  function renderProjects(){
   const project=currentProject();
@@ -55143,6 +55144,14 @@ function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
  $('view-projects').onclick=()=>navigate('projects');$('view-reminders').onclick=()=>navigate('reminders');
  $('space-work').onclick=()=>navigate('projects','Work');$('space-home').onclick=()=>navigate('projects','Home');
  $('task-reminder').onclick=()=>{taskHasReminder=!taskHasReminder;syncTaskSchedule()};
+ $('delete-project').onclick=()=>{$('delete-project-confirm').hidden=false;$('cancel-delete-project').focus()};
+ $('cancel-delete-project').onclick=()=>{$('delete-project-confirm').hidden=true;$('delete-project').focus()};
+ $('confirm-delete-project').onclick=async()=>{
+  const p=currentProject();if(!p||writing)return;
+  writing=true;$('confirm-delete-project').disabled=true;
+  try{await api.deleteProject(p.id);await refresh();navigate('projects');$('new-project').focus()}
+  catch(error){report(error)}finally{writing=false;$('confirm-delete-project').disabled=false}
+ };
  $('new-project').onclick=()=>{renaming=false;$('project-form').hidden=false;$('project-name').value='';$('project-name').focus()};
  $('cancel-project').onclick=()=>{$('project-form').hidden=true};
  function closeTitleEditor(){ $('project-title-form').hidden=true;$('project-title').hidden=false;$('project-title-error').textContent='';$('project-title').focus() }

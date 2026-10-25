@@ -78,3 +78,21 @@ try notesStore.save(id:notesID,text:"A task with notes",dueAt:3000,notes:"",now:
 check(try ReminderStore(url:notesURL).reminders[0].notes==nil,"Notes can be removed")
 do { try notesStore.save(id:nil,text:"Too long",dueAt:4000,notes:String(repeating:"x",count:10001),now:1000);fatalError("Oversize notes accepted") } catch is ReminderError {}
 print("PASS: optional notes persist, survive completion, clear and enforce the length limit")
+
+let deletionURL=directory.appendingPathComponent("project-deletion.json")
+let deletionStore=try ReminderStore(url:deletionURL)
+try deletionStore.saveProject(name:"Delete me",space:"Work",now:1000)
+let deleteID=deletionStore.projects[0].id
+try deletionStore.saveProject(name:"Keep me",space:"Home",now:1000)
+let keepID=deletionStore.projects[1].id
+try deletionStore.save(id:nil,text:"Undated",dueAt:nil,projectID:deleteID,now:1000)
+try deletionStore.save(id:nil,text:"Due",dueAt:2000,projectID:deleteID,now:1000)
+try deletionStore.save(id:nil,text:"Keep task",dueAt:nil,projectID:keepID,now:1000)
+try deletionStore.save(id:nil,text:"Standalone",dueAt:2000,now:1000)
+try deletionStore.checkDue(now:2500)
+try deletionStore.deleteProject(id:deleteID)
+let deletedReload=try ReminderStore(url:deletionURL)
+check(deletedReload.projects.count==1 && deletedReload.projects[0].id==keepID,"Only selected project deleted")
+check(deletedReload.reminders.count==2 && !deletedReload.reminders.contains(where:{$0.projectID==deleteID}),"Project tasks and due reminders removed persistently; other items retained")
+do { try deletionStore.deleteProject(id:deleteID);fatalError("Missing project deletion accepted") } catch is ReminderError {}
+print("PASS: project deletion cascades atomically to its tasks, preserves other projects and standalone reminders, and survives reload")

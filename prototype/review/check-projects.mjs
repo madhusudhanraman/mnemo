@@ -6,7 +6,7 @@ const get=id=>{if(!elements.has(id))elements.set(id,element());return elements.g
 globalThis.document={createElement:element,getElementById:get,body:{append(){},classList:{add(){}}}};
 globalThis.setTimeout=()=>0;globalThis.clearTimeout=()=>{};
 let rows=[{id:'existing',text:'Old reminder',dueAt:Date.now()+86400000,status:'pending',createdAt:1}],projects=[],serial=0;
-const native={mode:'companion',manage(){},async list(){return structuredClone(rows)},async listProjects(){return structuredClone(projects)},async saveProject(item){const p=projects.find(p=>p.id===item.id);if(p)Object.assign(p,item);else projects.push({...item,id:'p'+(++serial)});return structuredClone(projects)},async save(item){const p=rows.find(r=>r.id===item.id),next={...item,id:p?.id||'t'+(++serial),status:item.dueAt==null?'task':'pending',createdAt:p?.createdAt||Date.now()};if(p)Object.assign(p,next);else rows.push(next);return structuredClone(rows)},async action({id,action}){const r=rows.find(r=>r.id===id);r.status=action==='done'?'done':r.dueAt==null?'task':'pending';return structuredClone(rows)}};
+const native={mode:'companion',manage(){},async list(){return structuredClone(rows)},async listProjects(){return structuredClone(projects)},async deleteProject(id){projects=projects.filter(p=>p.id!==id);rows=rows.filter(r=>r.projectID!==id)},async saveProject(item){const p=projects.find(p=>p.id===item.id);if(p)Object.assign(p,item);else projects.push({...item,id:'p'+(++serial)});return structuredClone(projects)},async save(item){const p=rows.find(r=>r.id===item.id),next={...item,id:p?.id||'t'+(++serial),status:item.dueAt==null?'task':'pending',createdAt:p?.createdAt||Date.now()};if(p)Object.assign(p,next);else rows.push(next);return structuredClone(rows)},async action({id,action}){const r=rows.find(r=>r.id===id);r.status=action==='done'?'done':r.dueAt==null?'task':'pending';return structuredClone(rows)}};
 globalThis.window={mnemoDesktop:native,addEventListener:(name,fn)=>events[name]=fn};
 const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve()};
 startReminders({showThought:(text,options)=>shown={text,...options},hideThought(){},onDesktopMode(){}});await flush();
@@ -52,3 +52,9 @@ assert.equal(get('reminder-text').value,'A draft','Renaming preserves a task dra
 get('project-title').onclick();get('project-title-input').value='Do not save';get('project-title-form').onkeydown({key:'Escape',preventDefault(){}});
 assert.equal(get('project-title-form').hidden,true);assert.equal(projects.find(p=>p.id===projectBeforeRename.id).name,'Kitchen notes');
 console.log('PASS: click-to-rename saves in place, Escape cancels and task drafts survive');
+
+get('view-projects').onclick();get('new-project').onclick();get('project-name').value='Disposable';await get('project-form').onsubmit({preventDefault(){}});
+const deletedProject=projects.at(-1).id;get('reminder-text').value='Disposable task';await get('reminder-form').onsubmit({preventDefault(){}});
+get('delete-project').onclick();assert.equal(get('delete-project-confirm').hidden,false);get('cancel-delete-project').onclick();assert.ok(projects.some(p=>p.id===deletedProject),'Cancel retains project');
+get('delete-project').onclick();await get('confirm-delete-project').onclick();assert.ok(!projects.some(p=>p.id===deletedProject));assert.ok(!rows.some(r=>r.projectID===deletedProject));assert.equal(get('projects-view').hidden,false);assert.ok(rows.some(r=>r.id==='existing'),'Standalone reminders retained');
+console.log('PASS: project deletion confirmation, cancellation, task cascade and return to project list');

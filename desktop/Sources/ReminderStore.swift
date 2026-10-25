@@ -67,6 +67,10 @@ final class ReminderStore {
         } else { rows.append(MnemoProject(id:UUID().uuidString,name:value,space:space,createdAt:now)) }
         try commit(reminders,projects:rows)
     }
+    func deleteProject(id:String) throws {
+        guard projects.contains(where:{$0.id==id}) else { throw ReminderError.invalid("That project no longer exists.") }
+        try commit(reminders.filter{$0.projectID != id},projects:projects.filter{$0.id != id})
+    }
     func save(id:String?,text:String,dueAt:Double?,projectID:String?=nil,notes:String?=nil,now:Double=Date().timeIntervalSince1970*1000) throws {
         let value=text.trimmingCharacters(in:.whitespacesAndNewlines)
         guard !value.isEmpty,value.count<=280 else { throw ReminderError.invalid("Use between 1 and 280 characters for a reminder.") }
