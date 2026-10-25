@@ -30,7 +30,7 @@ Pull the latest main, rebuild with the office Mac’s existing signing identity,
 
 Latest editor polish: task and standalone labels both read “Remind me to...”, tasks share reminder placeholders, project creation has a full-width name field with aligned actions beneath, and project hover highlights have rounded corners and inset text.
 
-Follow-ups: project archive/delete and cross-Mac data synchronization are not implemented. Physical multi-display/Spaces verification and energy measurements remain outstanding as documented in native-mac.md.
+Project detail includes Delete Project, followed by an inline confirmation. Confirming permanently removes the project and all its tasks, including scheduled reminders, in one native atomic save; other projects and standalone reminders remain. Cancelling changes nothing. Cross-Mac data synchronization and project archiving are not implemented. Physical multi-display/Spaces verification and energy measurements remain outstanding as documented in native-mac.md.
 
 Project list tidy-up on `tidy-project-list`: compact rows show the project name, a badge for open tasks only, and a decorative chevron. Empty projects omit the badge. Task previews are removed; screen-reader labels retain the open-task count, and keyboard focus highlights the full row. Project navigation and count updates after task completion are covered by the editor checks.
 

@@ -158,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         (()=>{let next=0;const pending=new Map();window.mnemoNativeReply=reply=>{const p=pending.get(reply.id);if(!p)return;pending.delete(reply.id);reply.error?p.reject(new Error(reply.error)):p.resolve(reply.result)};
         const call=(method,payload={})=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.webkit.messageHandlers.mnemo.postMessage({id,method,payload})});
         const send=(method,payload={})=>window.webkit.messageHandlers.mnemo.postMessage({method,payload});
-        window.mnemoDesktop={nativeDrag:true,mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),usageLocation:'\(usageLocation)',preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),listProjects:()=>call('listProjects'),saveProject:project=>call('saveProject',project),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifyControl:command=>call('spotifyControl',{command}),spotifyLike:uri=>call('spotifyLike',{uri})};
+        window.mnemoDesktop={nativeDrag:true,mode:'\(mode)',systemActive:\(systemIsActive() ? "true" : "false"),usageLocation:'\(usageLocation)',preferredHeight:\(UserDefaults.standard.integer(forKey:"ghostVisibleHeight")),debug:\(debugRendering()),setSize:height=>send('setSize',{height}),list:()=>call('list'),listProjects:()=>call('listProjects'),saveProject:project=>call('saveProject',project),deleteProject:id=>call('deleteProject',{id}),save:item=>call('save',item),action:item=>call('action',item),manage:()=>send('manage'),closeManager:()=>send('closeManager'),moveBy:delta=>send('moveBy',delta),hitRegions:regions=>send('hitRegions',{regions}),spotifyControl:command=>call('spotifyControl',{command}),spotifyLike:uri=>call('spotifyLike',{uri})};
         window.addEventListener('error',e=>send('scriptError',{message:e.message}));
         })();
         """
@@ -455,6 +455,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 spotify.control(command) { [weak self,weak web] error in self?.reply(web:web,id:id,result:error == nil ? true:nil,error:error) }
             case "list": reply(web: web, id: id, result: try JSONSerialization.jsonObject(with: Data(store.json().utf8)))
             case "listProjects": reply(web:web,id:id,result:try JSONSerialization.jsonObject(with:Data(store.projectsJSON().utf8)))
+            case "deleteProject":
+                guard let projectID=payload["id"] as? String else { throw ReminderError.invalid("Choose a project to delete.") }
+                try store.deleteProject(id:projectID);changed()
+                reply(web:web,id:id,result:true)
             case "saveProject":
                 guard let name=payload["name"] as? String,let space=payload["space"] as? String else { throw ReminderError.invalid("A project needs a name and space.") }
                 try store.saveProject(id:payload["id"] as? String,name:name,space:space);changed()
