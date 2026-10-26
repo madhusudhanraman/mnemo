@@ -63,8 +63,21 @@ console.log('PASS: new reminder prompts rotate without replacing a draft');
 
 get('mode-date').onclick();
 const calendarDay=get('picker-days').children[0],minuteWheel=get('minute-wheel');
-minuteWheel.scrollTop=9*36+10;minuteWheel.onscroll();
-assert.equal(minuteWheel.scrollTop,334,'Scrolling never repositions the active wheel mid-gesture');
+minuteWheel.scrollTop=(60+9)*36+10;minuteWheel.onscroll();
+assert.equal(minuteWheel.scrollTop,(60+9)*36+10,'Scrolling never repositions the active wheel mid-gesture');
 assert.equal(get('picker-days').children[0],calendarDay,'Wheel updates do not rebuild the calendar');
-minuteWheel.onscrollend();assert.equal(minuteWheel.scrollTop,324,'Wheel settles to a whole minute after scrolling ends');
+minuteWheel.onscrollend();assert.equal(minuteWheel.scrollTop,(60+9)*36,'Wheel settles to a whole minute after scrolling ends');
 console.log('PASS: time-wheel momentum keeps its position and avoids calendar rebuilds');
+
+for(const [id,count] of [['hour-wheel',12],['minute-wheel',60]]){
+ const wheel=get(id),originalDate=new Date(get('reminder-when').value).getDate();
+ wheel.scrollTop=(2*count-1)*36;wheel.onscroll();wheel.onscrollend();
+ wheel.scrollTop=2*count*36;wheel.onscroll();wheel.onscrollend();
+ let date=new Date(get('reminder-when').value);assert.equal(id==='hour-wheel'?((date.getHours()%12||12)-1):date.getMinutes(),0,'Forward scroll wraps');
+ wheel.scrollTop=(count-1)*36;wheel.onscroll();wheel.onscrollend();date=new Date(get('reminder-when').value);assert.equal(id==='hour-wheel'?((date.getHours()%12||12)-1):date.getMinutes(),count-1,'Backward scroll wraps');assert.equal(date.getDate(),originalDate,'Wheel wrapping preserves the calendar date');
+}
+get('reminder-text').value='';
+// Locate a bag boundary, then check a complete shuffled cycle.
+let prompts=[];for(let i=0;i<30;i++){handlers['mnemo-new-reminder']();prompts.push(get('reminder-text').placeholder)}
+for(let start=0;start<10;start++)if(new Set(prompts.slice(start,start+10)).size===10&&new Set(prompts.slice(start+10,start+20)).size===10){assert.ok(prompts.includes('Forget a language.'));break}else if(start===9)assert.fail('Every shuffled cycle must cover all ten prompts');
+console.log('PASS: bidirectional scrolling wraps hours/minutes; shuffled prompts include all ten choices');

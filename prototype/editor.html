@@ -107,10 +107,22 @@ function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
   "Move skeletons to a bigger closet.",
   "Embark on a fool’s errand.",
   "Schedule a wild goose chase.",
-  "Check whether a ransom is tax-deductible."
+  "Check whether a ransom is tax-deductible.",
+  "Establish a plausible alibi.",
+  "Rehearse an evil laugh.",
+  "Find a new secret lair with better parking.",
+  "Forget a language."
 ];
  window.addEventListener('mnemo-new-reminder',()=>{if(!editing&&!text.value.trim())freshPrompt()});
- function freshPrompt(){const choices=sillyPrompts.filter(prompt=>prompt!==text.placeholder);text.placeholder=choices[Math.floor(Math.random()*choices.length)]}
+ let promptBag=[];
+ function freshPrompt(){
+  if(!promptBag.length){
+   promptBag=[...sillyPrompts];
+   for(let i=promptBag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[promptBag[i],promptBag[j]]=[promptBag[j],promptBag[i]]}
+   if(promptBag.at(-1)===text.placeholder)[promptBag[0],promptBag[promptBag.length-1]]=[promptBag.at(-1),promptBag[0]];
+  }
+  text.placeholder=promptBag.pop();
+ }
  const storageKey='mnemo.reminders.v1',projectStorageKey='mnemo.projects.v1';let reminders=[],projects=[],selectedProject=null,view='projects',space=native?.usageLocation==='Home'?'Home':'Work',taskHasReminder=false,renaming=false,editing=null,activeId=null,writing=false,pendingAction=null;
  let usageLocation=['Home','Work','Both'].includes(native?.usageLocation)?native.usageLocation:'Both';
  window.addEventListener('mnemo-location',event=>{
@@ -290,16 +302,32 @@ function startReminders({showThought,hideThought,onDone=()=>{},onDesktopMode}){
  const wheelRows=36,wheelTimers=new Map();let scrollingWheel=null;
  function wheelValue(id){const date=selectedDate();return id==='hour-wheel'?((date.getHours()%12||12)-1):date.getMinutes()}
  function commitWheel(id,index){const date=selectedDate();if(id==='hour-wheel')date.setHours((index+1)%12+(date.getHours()>=12?12:0));else date.setMinutes(index);if(date.getTime()!==selectedDate().getTime()){when.value=localDate(date);renderTimeSelection(date)}}
- function syncWheel(id,index){const wheel=$(id);wheel.setAttribute('aria-activedescendant',id+'-'+index);for(const [i,button] of [...wheel.children].entries())button.setAttribute('aria-selected',String(i===index));if(scrollingWheel!==id&&Math.abs(wheel.scrollTop-index*wheelRows)>1)wheel.scrollTop=index*wheelRows}
+ const wrap=(index,count)=>((index%count)+count)%count;
+ function syncWheel(id,index){
+  const wheel=$(id),count=id==='hour-wheel'?12:60;
+  wheel.setAttribute('aria-activedescendant',id+'-'+(count+index));
+  for(const [i,button] of [...wheel.children].entries())button.setAttribute('aria-selected',String(wrap(i,count)===index));
+  if(scrollingWheel!==id&&Math.abs(wheel.scrollTop-(count+index)*wheelRows)>1)wheel.scrollTop=(count+index)*wheelRows;
+ }
  for(const [id,count] of [['hour-wheel',12],['minute-wheel',60]]){
   const wheel=$(id);
-  for(let i=0;i<count;i++){const button=document.createElement('button');button.type='button';button.id=id+'-'+i;button.setAttribute('role','option');button.tabIndex=-1;button.textContent=id==='hour-wheel'?String(i+1):String(i).padStart(2,'0');button.onclick=()=>{scrollingWheel=null;commitWheel(id,i);wheel.scrollTop=i*wheelRows};wheel.append(button)}
-  const finishScroll=()=>{clearTimeout(wheelTimers.get(id));const index=Math.max(0,Math.min(count-1,Math.round(wheel.scrollTop/wheelRows)));scrollingWheel=null;commitWheel(id,index);syncWheel(id,index)};
+  // Repeated rows keep adjacent values available on either side of the seam.
+  for(let row=0;row<count*3;row++){
+   const i=row%count,button=document.createElement('button');button.type='button';button.id=id+'-'+row;button.setAttribute('role','option');button.tabIndex=-1;
+   if(row<count||row>=count*2)button.setAttribute('aria-hidden','true');
+   else{button.setAttribute('aria-posinset',String(i+1));button.setAttribute('aria-setsize',String(count))}
+   button.textContent=id==='hour-wheel'?String(i+1):String(i).padStart(2,'0');
+   button.onclick=()=>{scrollingWheel=null;commitWheel(id,i);syncWheel(id,i)};wheel.append(button);
+  }
+  const finishScroll=()=>{clearTimeout(wheelTimers.get(id));const index=wrap(Math.round(wheel.scrollTop/wheelRows),count);scrollingWheel=null;commitWheel(id,index);syncWheel(id,index)};
   wheel.onscroll=()=>{
-   const index=Math.max(0,Math.min(count-1,Math.round(wheel.scrollTop/wheelRows)));
-   if(scrollingWheel!==id&&index===wheelValue(id)&&Math.abs(wheel.scrollTop-index*wheelRows)<1)return;
-   scrollingWheel=id;commitWheel(id,index);clearTimeout(wheelTimers.get(id));
-   wheelTimers.set(id,setTimeout(finishScroll,250));
+   const row=wheel.scrollTop/wheelRows,index=wrap(Math.round(row),count);
+   if(scrollingWheel!==id&&index===wheelValue(id)&&Math.abs(row-(count+index))<.03)return;
+   scrollingWheel=id;
+   // Rebase by one complete cycle, preserving the fractional scroll position.
+   if(row<count/2)wheel.scrollTop+=count*wheelRows;
+   else if(row>count*2.5)wheel.scrollTop-=count*wheelRows;
+   commitWheel(id,index);clearTimeout(wheelTimers.get(id));wheelTimers.set(id,setTimeout(finishScroll,250));
   };
   wheel.onscrollend=finishScroll;
   wheel.onkeydown=event=>{let index=wheelValue(id);if(event.key==='ArrowDown')index=(index+1)%count;else if(event.key==='ArrowUp')index=(index+count-1)%count;else if(event.key==='Home')index=0;else if(event.key==='End')index=count-1;else return;event.preventDefault();scrollingWheel=null;commitWheel(id,index);syncWheel(id,index)};

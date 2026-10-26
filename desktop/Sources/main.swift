@@ -298,7 +298,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let mainMenu=NSMenu(),applicationMenu=NSMenu(),applicationItem=NSMenuItem()
         let settingsItem=NSMenuItem(title:"Settings…",action:#selector(showSettings),keyEquivalent:",");settingsItem.target=self;applicationMenu.addItem(settingsItem);applicationMenu.addItem(.separator())
         let quitItem=NSMenuItem(title:"Quit Mnemo",action:#selector(quit),keyEquivalent:"q");quitItem.target=self
-        applicationMenu.addItem(quitItem);applicationItem.submenu=applicationMenu;mainMenu.addItem(applicationItem);NSApp.mainMenu=mainMenu
+        applicationMenu.addItem(quitItem);applicationItem.submenu=applicationMenu;mainMenu.addItem(applicationItem)
+        // Standard responder-chain actions let both WebKit and native fields edit normally.
+        let editMenu=NSMenu(title:"Edit"),editItem=NSMenuItem(title:"Edit",action:nil,keyEquivalent:"")
+        for (title,selector,key,shift) in [("Undo","undo:","z",false),("Redo","redo:","z",true),("Cut","cut:","x",false),("Copy","copy:","c",false),("Paste","paste:","v",false),("Select All","selectAll:","a",false)] {
+            if title=="Cut" || title=="Select All" { editMenu.addItem(.separator()) }
+            let item=NSMenuItem(title:title,action:NSSelectorFromString(selector),keyEquivalent:key)
+            item.keyEquivalentModifierMask=shift ? [.command,.shift]:[.command]
+            editMenu.addItem(item)
+        }
+        editItem.submenu=editMenu;mainMenu.addItem(editItem);NSApp.mainMenu=mainMenu
         observeMenu(menu);observeMenu(applicationMenu);refreshLoginItemState()
     }
     func observeMenu(_ menu:NSMenu) {

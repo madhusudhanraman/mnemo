@@ -55,3 +55,5 @@ Native Settings → Use Mnemo at offers Home, Work and Both. Home or Work hides 
 Project titles now act as rename controls: click (or keyboard-activate) the title to edit it in place, Enter/Save commits and Escape/Cancel leaves it unchanged. Renaming preserves the task draft. Notes use the plain “Notes” label. The user selected font study B: Avenir Next throughout the editor, with Avenir and sans-serif fallbacks.
 
 Navigation uses the top Projects tab to return from any project to its list, including when already selected. Removed the duplicate list heading and secondary back button; the list creation action reads “+ New” (accessible name “New project”).
+
+26 October local follow-up: reminder/task prompts now use ten selected phrases in a shuffled bag, exhausting every phrase before reshuffling and avoiding a repeat at the bag boundary. Drafts are preserved. Hour and minute wheels use repeated cycles and rebase by whole cycles so scrolling wraps in either direction, preserving the selected date and AM/PM. Editor checks cover both scroll seams and prompt coverage.

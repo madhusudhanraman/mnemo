@@ -11,6 +11,12 @@ let originalMain=app.mainMenu!
 assert(originalMenu.delegate === delegate)
 assert(originalMenu.items.filter({!$0.isSeparatorItem}).map(\.title) == ["Open Mnemo…","Settings…","Show / hide ghost","Pause / resume motion","Quit Mnemo"])
 assert(originalMain.items.first!.submenu!.items.filter({!$0.isSeparatorItem}).map(\.title) == ["Settings…","Quit Mnemo"])
+let editMenu=originalMain.items.first(where:{$0.title=="Edit"})!.submenu!
+let editActions=editMenu.items.filter{!$0.isSeparatorItem}
+assert(editActions.map(\.keyEquivalent)==["z","z","x","c","v","a"])
+assert(editActions.map{NSStringFromSelector($0.action!)}==["undo:","redo:","cut:","copy:","paste:","selectAll:"])
+assert(editActions.allSatisfy{$0.target==nil},"Edit actions use the focused responder")
+assert(editActions[1].keyEquivalentModifierMask == [.command,.shift])
 delegate.createMenu()
 assert(delegate.statusItem === originalStatus && delegate.statusItem.menu === originalMenu)
 assert(app.mainMenu === originalMain)
