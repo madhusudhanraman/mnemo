@@ -55506,7 +55506,8 @@ function showThought(text,{persistent=false,meta='',actions=[],onShown=()=>{},en
  if(queueFlutterAllowed)behaviours.flutter();
  if(persistent)wakeCompanion();
  activeThoughtPersistent=persistent;spotifyCaption?.sync();companion.setVanished(false);peekabooReturn=Infinity;nextPeekaboo=time+180+Math.random()*120;
- clearTimeout(announcementTimer);clearTimeout(bubbleTimer);bubble.classList.remove('show');bubble.replaceChildren();
+ const handoff=persistent&&entrance!=='full';
+ announcementReveal=null;clearTimeout(announcementTimer);clearTimeout(bubbleTimer);if(!handoff)bubble.classList.remove('show');bubble.replaceChildren();
  if(meta){const label=document.createElement('span');label.className='thought-meta';label.textContent=meta;bubble.append(label)}
  const content=document.createElement('div');content.className='thought-content';content.textContent=text;bubble.append(content);
  if(actions.length){const row=document.createElement('div');row.className='thought-actions';for(const action of actions){const button=document.createElement('button');button.type='button';button.textContent=action.label;button.onclick=action.run;row.append(button)}bubble.append(row)}
@@ -55514,7 +55515,7 @@ function showThought(text,{persistent=false,meta='',actions=[],onShown=()=>{},en
  if(persistent&&!paused&&!reduced){
   companion.setVanished(false,true);announcementStart=time;announcementBaseYaw=model.rotation.y;spinStart=-100;
   nextAdventure=Math.max(nextAdventure,time+90);
-  announcementReveal=reveal;
+  if(handoff)reveal();else announcementReveal=reveal;
  }else reveal();
  invalidateRender();
 }
