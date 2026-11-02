@@ -121,7 +121,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     func startMouseTracking() {
         guard mouseMonitors.isEmpty,trackingMenus.isEmpty else { return }
-        if let monitor=NSEvent.addLocalMonitorForEvents(matching:[.mouseMoved,.leftMouseDown,.leftMouseDragged,.leftMouseUp],handler:{ [weak self] event in self?.trackCompanionDrag(event);self?.updateClickThrough();return event }) { mouseMonitors.append(monitor) }
+        if let monitor=NSEvent.addLocalMonitorForEvents(matching:[.mouseMoved,.leftMouseDown,.leftMouseDragged,.leftMouseUp,.rightMouseDown],handler:{ [weak self] event in
+            guard let self=self else { return event }
+            guard event.type == .rightMouseDown,event.window === self.ghost else {
+                self.trackCompanionDrag(event);self.updateClickThrough();return event
+            }
+            let menu=NSMenu()
+            let hide=NSMenuItem(title:"Hide Mnemo",action:#selector(AppDelegate.toggleGhost),keyEquivalent:"")
+            hide.target=self;menu.addItem(hide);self.observeMenu(menu)
+            NSMenu.popUpContextMenu(menu,with:event,for:self.ghostWeb)
+            return nil
+        }) { mouseMonitors.append(monitor) }
         if let monitor=NSEvent.addGlobalMonitorForEvents(matching:[.mouseMoved,.leftMouseDragged],handler:{ [weak self] _ in self?.updateClickThrough() }) { mouseMonitors.append(monitor) }
     }
     func stopMouseTracking() {
